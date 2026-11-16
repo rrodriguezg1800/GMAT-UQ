@@ -51,17 +51,17 @@ jobs:
         run: |
           mkdir -p downloads
           if [ ! -f downloads/gmat.tar.gz ]; then
-            curl -L --fail --retry 5 --retry-delay 10 -o downloads/gmat.tar.gz \
+            curl -L --fail --retry 8 --retry-delay 10 --retry-all-errors --connect-timeout 30 --speed-limit 100000 --speed-time 60 --max-time 1200 -o downloads/gmat.tar.gz \
               "https://sourceforge.net/projects/gmat/files/GMAT/GMAT-${GMAT_RELEASE}/gmat-ubuntu-x64-${GMAT_RELEASE}.tar.gz/download"
           fi
           if [ ! -f downloads/cspice.tar.Z ]; then
-            curl -L --fail --retry 5 --retry-delay 10 -o downloads/cspice.tar.Z \
+            curl -L --fail --retry 8 --retry-delay 10 --retry-all-errors --connect-timeout 30 --speed-limit 100000 --speed-time 60 --max-time 1200 -o downloads/cspice.tar.Z \
               "https://naif.jpl.nasa.gov/pub/naif/toolkit/C/PC_Linux_GCC_64bit/packages/cspice.tar.Z"
           fi
           mkdir -p gmat cspice
           tar -xzf downloads/gmat.tar.gz -C gmat
           gzip -dc downloads/cspice.tar.Z | tar -x -C cspice cspice/include
-          find gmat -maxdepth 3 | head -40
+          find gmat -maxdepth 3 | head -40 || true
           console=$(find gmat \( -type f -o -type l \) -name 'GmatConsole*' | head -1)
           if [ -z "$console" ]; then echo "GmatConsole not found in the archive"; exit 1; fi
           echo "console: $console"
@@ -124,11 +124,11 @@ jobs:
         run: |
           mkdir -p downloads
           if [ ! -f downloads/gmat.zip ]; then
-            curl -L --fail --retry 5 --retry-delay 10 -o downloads/gmat.zip \
+            curl -L --fail --retry 8 --retry-delay 10 --retry-all-errors --connect-timeout 30 --speed-limit 100000 --speed-time 60 --max-time 1200 -o downloads/gmat.zip \
               "https://sourceforge.net/projects/gmat/files/GMAT/GMAT-${GMAT_RELEASE}/gmat-win-${GMAT_RELEASE}.zip/download"
           fi
           if [ ! -f downloads/cspice.zip ]; then
-            curl -L --fail --retry 5 --retry-delay 10 -o downloads/cspice.zip \
+            curl -L --fail --retry 8 --retry-delay 10 --retry-all-errors --connect-timeout 30 --speed-limit 100000 --speed-time 60 --max-time 1200 -o downloads/cspice.zip \
               "https://naif.jpl.nasa.gov/pub/naif/toolkit/C/PC_Windows_VisualC_64bit/packages/cspice.zip"
           fi
           mkdir -p gmat cspice

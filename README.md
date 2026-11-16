@@ -1,31 +1,38 @@
 # GMAT + GMAT-UQ
 
 This repository is a fork of [nasa/GMAT](https://github.com/nasa/GMAT), NASA's
-General Mission Analysis Tool. It adds one thing: **GMAT-UQ**, a tool for
-uncertainty analysis of GMAT missions, in the [`gmat-uq/`](gmat-uq/) folder.
+General Mission Analysis Tool. It adds **GMAT-UQ**, uncertainty analysis for
+GMAT missions:
+
+- [`gmat-uq/`](gmat-uq/): the GMAT-UQ engines, a Python package that drives
+  GMAT through its API.
+- [`plugins/GmatUQPlugin/`](plugins/GmatUQPlugin/): a GMAT plugin that adds
+  the analysis to GMAT's script language (`RunUncertaintyAnalysis`,
+  `UQ.DeltaV99`, ...).
 
 GMAT-UQ answers two questions that GMAT does not answer on its own:
 
 - **How much delta-V margin does the trajectory need?** Delta-V 99, with a
-  confidence interval, given injection errors, maneuver execution errors and
-  navigation errors.
+  confidence interval, given injection errors, maneuver execution errors,
+  navigation errors and uncertain model parameters such as Cd.
 - **How accurately is the spacecraft delivered?** Dispersion covariance along
   the trajectory and dispersion ellipses at the target, for example in the
   lunar B-plane.
 
 It does so with a linear covariance engine, a sigma-point check that says when
 the linear answer can be trusted, and a closed-loop Monte Carlo engine that
-runs in parallel. GMAT itself does the propagation, through its Python API.
+runs in parallel. GMAT itself does the propagation.
 
 Start with [`gmat-uq/README.md`](gmat-uq/README.md). The validation results are
 in [`gmat-uq/docs/validation.md`](gmat-uq/docs/validation.md).
 
 ## What is and is not changed
 
-- Everything outside `gmat-uq/`, this file and `.github/workflows/gmat-uq.yml`
-  is the upstream GMAT source, unmodified.
-- GMAT-UQ is a separate Python package. It is not compiled into GMAT and needs
-  no changes to a GMAT installation.
+- New: `gmat-uq/`, `plugins/GmatUQPlugin/`, this file, and the workflows
+  `.github/workflows/gmat-uq.yml` and `.github/workflows/gmat-uq-plugin.yml`.
+- Changed: `plugins/CMakeLists.txt` gains the option `PLUGIN_GMATUQ`, off by
+  default, to build the plugin with GMAT.
+- Everything else is the upstream GMAT source, unmodified.
 
 ## Status
 
