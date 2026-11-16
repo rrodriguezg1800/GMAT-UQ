@@ -37,13 +37,6 @@ namespace
       UQField f = {name, Gmat::RVECTOR_TYPE, false, 0.0, ""};
       return f;
    }
-   UQField Result(const char *name)
-   {
-      // -1 means "not computed" (for example Monte Carlo results when it did not run)
-      UQField f = {name, Gmat::REAL_TYPE, true, -1.0, ""};
-      return f;
-   }
-
    const char *DefaultPython()
    {
    #ifdef _WIN32
@@ -169,15 +162,6 @@ const std::vector<UQField>& UncertaintyAnalysis::Fields()
       Real_("Confidence", 0.95),
       Text("ReportFile"),                    // default: <output folder>/<name>.json
       Text("PythonExecutable", DefaultPython()),
-      // Results, written by RunUncertaintyAnalysis
-      Result("DeltaV99"),                    // km/s, linear covariance
-      Result("DeltaVMean"),                  // km/s, linear covariance
-      Result("MonteCarloDeltaV99"),          // km/s
-      Result("FinalPositionSigma"),          // km, RSS of the three axes
-      Result("FinalVelocitySigma"),          // km/s, RSS of the three axes
-      Result("NonlinearityIndex"),           // largest sigma-point index
-      Result("LinearTrusted"),               // 1 or 0
-      Result("EnginesAgree"),                // 1 or 0
    };
    return table;
 }

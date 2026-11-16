@@ -61,7 +61,11 @@ jobs:
           mkdir -p gmat cspice
           tar -xzf downloads/gmat.tar.gz -C gmat
           gzip -dc downloads/cspice.tar.Z | tar -x -C cspice cspice/include
-          root=$(dirname "$(dirname "$(find gmat -type f -name GmatConsole | head -1)")")
+          find gmat -maxdepth 3 | head -40
+          console=$(find gmat \( -type f -o -type l \) -name 'GmatConsole*' | head -1)
+          if [ -z "$console" ]; then echo "GmatConsole not found in the archive"; exit 1; fi
+          echo "console: $console"
+          root=$(dirname "$(dirname "$console")")
           echo "GMAT_ROOT=$GITHUB_WORKSPACE/$root" >> "$GITHUB_ENV"
           echo "GMAT root: $root"; ls "$root" "$root/bin/gmatpy"
       - name: Set up Python

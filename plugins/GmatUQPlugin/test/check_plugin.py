@@ -49,6 +49,9 @@ def console(gmat_root: Path) -> Path:
         path = gmat_root / "bin" / name
         if path.exists():
             return path
+    matches = sorted((gmat_root / "bin").glob("GmatConsole*"))
+    if matches:
+        return matches[0]
     raise SystemExit("GmatConsole not found")
 
 
@@ -150,7 +153,10 @@ def main(argv: list[str]) -> int:
             raise SystemExit("GMAT did not run the plugin test script")
 
         names = ["DV99", "DVMean", "MCDV99", "PosSigma", "VelSigma", "Trusted", "Agree", "Index"]
-        reported = dict(zip(names, np.loadtxt(results_file).ravel()))
+        rows = np.atleast_2d(np.loadtxt(results_file))
+        if rows.shape != (2, len(names)) or not np.array_equal(rows[0], rows[1]):
+            failures.append(f"variables and parameters disagree, or a row is missing: {rows.tolist()}")
+        reported = dict(zip(names, rows[0]))
         report = json.loads(report_file.read_text(encoding="utf-8"))
         print("GMAT reported:", reported)
         start, state = check_configuration(gmat_root, script, failures)

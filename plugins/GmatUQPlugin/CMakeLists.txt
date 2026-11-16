@@ -47,6 +47,7 @@ set(PLUGIN_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/src/base")
 add_library(GmatUQ SHARED
   ${PLUGIN_ROOT}/command/RunUncertaintyAnalysis.cpp
   ${PLUGIN_ROOT}/factory/GmatUQFactory.cpp
+  ${PLUGIN_ROOT}/parameter/UQResultParameter.cpp
   ${PLUGIN_ROOT}/plugin/GmatPluginFunctions.cpp
   ${PLUGIN_ROOT}/resource/UQObject.cpp
   ${PLUGIN_ROOT}/resource/UQResources.cpp
@@ -54,7 +55,7 @@ add_library(GmatUQ SHARED
 set_target_properties(GmatUQ PROPERTIES PREFIX "lib" DEFINE_SYMBOL "GMATUQ_EXPORTS")
 target_include_directories(GmatUQ PRIVATE
   ${PLUGIN_ROOT}/command ${PLUGIN_ROOT}/factory ${PLUGIN_ROOT}/include
-  ${PLUGIN_ROOT}/plugin ${PLUGIN_ROOT}/resource
+  ${PLUGIN_ROOT}/parameter ${PLUGIN_ROOT}/plugin ${PLUGIN_ROOT}/resource
   ${GMAT_INCLUDE_DIRS} "${CSPICE_INCLUDE_DIR}")
 
 # The definitions GMAT itself is built with (see the top-level CMakeLists.txt of GMAT).

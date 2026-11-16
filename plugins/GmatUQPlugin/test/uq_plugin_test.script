@@ -3,8 +3,8 @@
 %  The spacecraft coasts for 600 s, then RunUncertaintyAnalysis analyses the next
 %  90 minutes from the state at that moment: a deterministic burn, then a correction
 %  that targets the position at the end, with execution, navigation and injection
-%  errors and an uncertain drag coefficient.  The results are copied into variables
-%  and written to a report.
+%  errors and an uncertain drag coefficient.  The results are GMAT parameters
+%  (UQ.DeltaV99 ...): they are copied into variables and also reported directly.
 %
 %  check_plugin.py fills in the two @...@ paths and compares the results with the
 %  same analysis run directly from Python.
@@ -105,3 +105,4 @@ Trusted = UQ.LinearTrusted;
 Agree = UQ.EnginesAgree;
 Index = UQ.NonlinearityIndex;
 Report Results DV99 DVMean MCDV99 PosSigma VelSigma Trusted Agree Index;
+Report Results UQ.DeltaV99 UQ.DeltaVMean UQ.MonteCarloDeltaV99 UQ.FinalPositionSigma UQ.FinalVelocitySigma UQ.LinearTrusted UQ.EnginesAgree UQ.NonlinearityIndex;

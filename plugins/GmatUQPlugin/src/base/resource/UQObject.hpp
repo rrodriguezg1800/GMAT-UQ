@@ -60,7 +60,10 @@ public:
    const std::vector<Real>&
                         GetReals(const std::string &field) const;
    bool                 IsSet(const std::string &field) const;
-   void                 SetResult(const std::string &field, Real value);
+
+   /// Results of an analysis, read by the UQ.<Result> parameters (-1 when not computed)
+   void                 SetResult(const std::string &name, Real value);
+   Real                 GetResult(const std::string &name) const;
 
    // Parameter interface.  The using-declarations keep GmatBase's other
    // overloads visible next to the ones redefined here.
@@ -159,6 +162,7 @@ protected:
    std::map<Integer, std::vector<Real> > realArrays;
    /// Fields assigned in the script (results and defaults are not)
    std::map<Integer, bool>             assigned;
+   std::map<std::string, Real>         results;
    /// Storage for the Rvector returned by GetRvectorParameter
    mutable Rvector                     rvectorBuffer;
 

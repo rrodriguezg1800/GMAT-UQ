@@ -108,6 +108,8 @@ def run_gmat_console(gmat_root: str, script: Path) -> None:
     binary = Path(gmat_root) / "bin" / "GmatConsole.exe"
     if not binary.exists():
         binary = Path(gmat_root) / "bin" / "GmatConsole"
+    if not binary.exists():
+        binary = sorted((Path(gmat_root) / "bin").glob("GmatConsole*"))[0]
     completed = subprocess.run(
         [str(binary), "--run", str(script)], capture_output=True, text=True, timeout=600, cwd=str(binary.parent)
     )

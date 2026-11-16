@@ -67,7 +67,8 @@ UQObject::UQObject(const UQObject &other) :
    strings        (other.strings),
    stringArrays   (other.stringArrays),
    realArrays     (other.realArrays),
-   assigned       (other.assigned)
+   assigned       (other.assigned),
+   results        (other.results)
 {
 }
 
@@ -84,6 +85,7 @@ UQObject& UQObject::operator=(const UQObject &other)
       stringArrays = other.stringArrays;
       realArrays   = other.realArrays;
       assigned     = other.assigned;
+      results      = other.results;
    }
    return *this;
 }
@@ -182,11 +184,15 @@ bool UQObject::IsSet(const std::string &field) const
    return it != assigned.end() && it->second;
 }
 
-void UQObject::SetResult(const std::string &field, Real value)
+void UQObject::SetResult(const std::string &name, Real value)
 {
-   Integer id = CheckedID(field);
-   RequireType(id, Gmat::REAL_TYPE);
-   reals[id] = value;
+   results[name] = value;
+}
+
+Real UQObject::GetResult(const std::string &name) const
+{
+   std::map<std::string, Real>::const_iterator it = results.find(name);
+   return it == results.end() ? -1.0 : it->second;
 }
 
 //------------------------------------------------------------------------------

@@ -121,6 +121,7 @@ OPTION(PLUGIN_FMINCONOPTIMIZER "FminconOptimizer Plugin" OFF)
 OPTION(PLUGIN_FORMATION "Formation Plugin" ON)
 OPTION(PLUGIN_GEOMETRICMEASUREMENT "GeometricMeasurement Plugin" OFF)
 OPTION(PLUGIN_GMATFUNCTION "GmatFunction Plugin" ON)
+OPTION(PLUGIN_GMATUQ "GMAT-UQ uncertainty analysis Plugin (needs the gmat-uq Python package at run time)" OFF)
 OPTION(PLUGIN_MATLABINTERFACE "MatlabInterface Plugin" ON)
 OPTION(PLUGIN_MSISE00ATMOSPHERE "MSISE00 Atmosphere Plugin" ON)
 OPTION(PLUGIN_NEWPARAMETERS "NewParameter Plugin" ON)
@@ -281,6 +282,15 @@ endif()
 # Msise00 Plugin
 if (PLUGIN_MSISE00ATMOSPHERE)
   SET(PLUGINDIR "Msise00Plugin/src/base")
+  ADD_SUBDIRECTORY(${PLUGINDIR})
+  GET_DIRECTORY_PROPERTY(tmp DIRECTORY ${PLUGINDIR} DEFINITION TargetName)
+  SET(PluginTargets ${PluginTargets} ${tmp})
+endif()
+
+# ====================================================================
+# GMAT-UQ Plugin
+if (PLUGIN_GMATUQ)
+  SET(PLUGINDIR "GmatUQPlugin/src/base")
   ADD_SUBDIRECTORY(${PLUGINDIR})
   GET_DIRECTORY_PROPERTY(tmp DIRECTORY ${PLUGINDIR} DEFINITION TargetName)
   SET(PluginTargets ${PluginTargets} ${tmp})

@@ -30,6 +30,24 @@ public:
                                      const std::string &withName = "");
 };
 
+class GMATUQ_API UQParameterFactory : public Factory
+{
+public:
+   UQParameterFactory();
+   virtual ~UQParameterFactory();
+   UQParameterFactory(const UQParameterFactory &other);
+   UQParameterFactory& operator=(const UQParameterFactory &other);
+
+   virtual GmatBase*    CreateObject(const std::string &ofType,
+                                     const std::string &withName = "");
+   virtual Parameter*   CreateParameter(const std::string &ofType,
+                                        const std::string &withName = "");
+   virtual StringArray  GetListOfCreatableObjects(const std::string &qualifier = "");
+
+private:
+   bool                 registrationComplete;
+};
+
 class GMATUQ_API UQCommandFactory : public Factory
 {
 public:

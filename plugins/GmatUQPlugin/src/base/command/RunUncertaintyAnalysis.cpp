@@ -513,9 +513,9 @@ bool RunUncertaintyAnalysis::Execute()
    MessageInterface::ShowMessage(
       "RunUncertaintyAnalysis %s: delta-V 99 %.6f km/s, final position sigma %.6f km, "
       "linear results %s. Report: %s\n",
-      analysisName.c_str(), analysis->GetReal("DeltaV99"), analysis->GetReal("FinalPositionSigma"),
-      analysis->GetReal("LinearTrusted") == 1.0 ? "trusted" :
-         (analysis->GetReal("LinearTrusted") == 0.0 ? "NOT trusted" : "not checked"),
+      analysisName.c_str(), analysis->GetResult("DeltaV99"), analysis->GetResult("FinalPositionSigma"),
+      analysis->GetResult("LinearTrusted") == 1.0 ? "trusted" :
+         (analysis->GetResult("LinearTrusted") == 0.0 ? "NOT trusted" : "not checked"),
       reportFile.c_str());
 
    BuildCommandSummary(true);

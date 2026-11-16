@@ -16,7 +16,7 @@ extern "C"
 {
    Integer GetFactoryCount()
    {
-      return 2;
+      return 3;
    }
 
    Factory* GetFactoryPointer(Integer index)
@@ -25,6 +25,7 @@ extern "C"
       {
          case 0:  return new UQResourceFactory;
          case 1:  return new UQCommandFactory;
+         case 2:  return new UQParameterFactory;
          default: return NULL;
       }
    }

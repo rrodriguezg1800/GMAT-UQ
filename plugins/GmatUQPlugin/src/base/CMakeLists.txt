@@ -12,11 +12,12 @@ MESSAGE("GMAT-UQ Plugin setup " ${VERSION})
 
 SET(TargetName GmatUQ)
 
-SET(PLUGIN_DIRS command factory include plugin resource)
+SET(PLUGIN_DIRS command factory include parameter plugin resource)
 
 SET(PLUGIN_SRCS
     command/RunUncertaintyAnalysis.cpp
     factory/GmatUQFactory.cpp
+    parameter/UQResultParameter.cpp
     plugin/GmatPluginFunctions.cpp
     resource/UQObject.cpp
     resource/UQResources.cpp
