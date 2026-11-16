@@ -1,0 +1,163 @@
+name: GMAT-UQ with GMAT
+
+# Builds the GMAT-UQ plugin against the official GMAT R2026a release on Linux
+# and Windows, then, with that GMAT installed on the runner:
+#   - runs the whole GMAT-UQ test suite, including the tests that drive GMAT;
+#   - installs the plugin into GMAT and runs plugins/GmatUQPlugin/test/check_plugin.py,
+#     which runs an analysis written in GMAT's script language and compares it
+#     with the same analysis run from Python.
+# The plugin libraries are kept as build artifacts.
+
+on:
+  push:
+    paths:
+      - "gmat-uq/**"
+      - "plugins/GmatUQPlugin/**"
+      - ".github/workflows/gmat-uq-plugin.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GMAT_RELEASE: R2026a
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  linux:
+    name: Linux (Ubuntu, GMAT R2026a)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out GMAT-UQ
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            gmat-uq
+            plugins/GmatUQPlugin
+      - name: Check out the GMAT headers of the release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.GMAT_RELEASE }}
+          path: gmat-src
+          sparse-checkout: |
+            src/base
+            src/gmatutil
+      - name: Cache GMAT and CSPICE downloads
+        uses: actions/cache@v4
+        with:
+          path: downloads
+          key: gmat-${{ env.GMAT_RELEASE }}-ubuntu-cspice-v1
+      - name: Download GMAT and the CSPICE headers
+        run: |
+          mkdir -p downloads
+          if [ ! -f downloads/gmat.tar.gz ]; then
+            curl -L --fail --retry 5 --retry-delay 10 -o downloads/gmat.tar.gz \
+              "https://sourceforge.net/projects/gmat/files/GMAT/GMAT-${GMAT_RELEASE}/gmat-ubuntu-x64-${GMAT_RELEASE}.tar.gz/download"
+          fi
+          if [ ! -f downloads/cspice.tar.Z ]; then
+            curl -L --fail --retry 5 --retry-delay 10 -o downloads/cspice.tar.Z \
+              "https://naif.jpl.nasa.gov/pub/naif/toolkit/C/PC_Linux_GCC_64bit/packages/cspice.tar.Z"
+          fi
+          mkdir -p gmat cspice
+          tar -xzf downloads/gmat.tar.gz -C gmat
+          gzip -dc downloads/cspice.tar.Z | tar -x -C cspice cspice/include
+          root=$(dirname "$(dirname "$(find gmat -type f -name GmatConsole | head -1)")")
+          echo "GMAT_ROOT=$GITHUB_WORKSPACE/$root" >> "$GITHUB_ENV"
+          echo "GMAT root: $root"; ls "$root" "$root/bin/gmatpy"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Check that GMAT runs here
+        run: |
+          ldd "$GMAT_ROOT/bin/GmatConsole" | grep "not found" || true
+          cd "$GMAT_ROOT/bin" && ./GmatConsole --version | tail -5
+      - name: Install GMAT-UQ
+        run: python -m pip install -e "gmat-uq[test]"
+      - name: Build the plugin
+        run: |
+          cmake -S plugins/GmatUQPlugin -B build -DCMAKE_BUILD_TYPE=Release \
+            -DGMAT_SOURCE_DIR="$GITHUB_WORKSPACE/gmat-src" -DGMAT_INSTALL_DIR="$GMAT_ROOT" \
+            -DCSPICE_INCLUDE_DIR="$GITHUB_WORKSPACE/cspice/cspice/include"
+          cmake --build build --parallel
+          ls -l build/libGmatUQ.so
+      - name: Test GMAT-UQ against GMAT
+        working-directory: gmat-uq
+        run: python -m pytest -ra
+      - name: Test the plugin inside GMAT
+        run: python plugins/GmatUQPlugin/test/check_plugin.py "$GMAT_ROOT" build/libGmatUQ.so
+      - name: Keep the plugin library
+        uses: actions/upload-artifact@v4
+        with:
+          name: libGmatUQ-linux-R2026a
+          path: build/libGmatUQ.so
+
+  windows:
+    name: Windows (GMAT R2026a)
+    runs-on: windows-2022
+    steps:
+      - name: Check out GMAT-UQ
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            gmat-uq
+            plugins/GmatUQPlugin
+      - name: Check out the GMAT headers of the release
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.GMAT_RELEASE }}
+          path: gmat-src
+          sparse-checkout: |
+            src/base
+            src/gmatutil
+      - name: Cache GMAT and CSPICE downloads
+        uses: actions/cache@v4
+        with:
+          path: downloads
+          key: gmat-${{ env.GMAT_RELEASE }}-windows-cspice-v1
+      - name: Download GMAT and the CSPICE headers
+        shell: bash
+        run: |
+          mkdir -p downloads
+          if [ ! -f downloads/gmat.zip ]; then
+            curl -L --fail --retry 5 --retry-delay 10 -o downloads/gmat.zip \
+              "https://sourceforge.net/projects/gmat/files/GMAT/GMAT-${GMAT_RELEASE}/gmat-win-${GMAT_RELEASE}.zip/download"
+          fi
+          if [ ! -f downloads/cspice.zip ]; then
+            curl -L --fail --retry 5 --retry-delay 10 -o downloads/cspice.zip \
+              "https://naif.jpl.nasa.gov/pub/naif/toolkit/C/PC_Windows_VisualC_64bit/packages/cspice.zip"
+          fi
+          mkdir -p gmat cspice
+          unzip -q downloads/gmat.zip -d gmat
+          unzip -q downloads/cspice.zip "cspice/include/*" -d cspice
+          root=$(dirname "$(dirname "$(find gmat -type f -name GmatConsole.exe | head -1)")")
+          echo "GMAT_ROOT=$(cygpath -w "$GITHUB_WORKSPACE/$root")" >> "$GITHUB_ENV"
+          echo "GMAT root: $root"; ls "$root" "$root/bin/gmatpy"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Set up the Visual Studio tools
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install GMAT-UQ
+        run: python -m pip install -e "gmat-uq[test]"
+      - name: Build the plugin
+        shell: bash
+        run: |
+          cmake -S plugins/GmatUQPlugin -B build -G "Visual Studio 17 2022" -A x64 \
+            -DGMAT_SOURCE_DIR="$GITHUB_WORKSPACE/gmat-src" -DGMAT_INSTALL_DIR="$GMAT_ROOT" \
+            -DCSPICE_INCLUDE_DIR="$GITHUB_WORKSPACE/cspice/cspice/include"
+          cmake --build build --config Release --parallel
+          ls -l build/Release/libGmatUQ.dll
+      - name: Test GMAT-UQ against GMAT
+        working-directory: gmat-uq
+        run: python -m pytest -ra
+      - name: Test the plugin inside GMAT
+        run: python plugins/GmatUQPlugin/test/check_plugin.py "$env:GMAT_ROOT" build/Release/libGmatUQ.dll
+      - name: Keep the plugin library
+        uses: actions/upload-artifact@v4
+        with:
+          name: libGmatUQ-windows-R2026a
+          path: build/Release/libGmatUQ.dll

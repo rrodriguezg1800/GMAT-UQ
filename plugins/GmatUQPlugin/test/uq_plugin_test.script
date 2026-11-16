@@ -1,0 +1,107 @@
+%  GMAT-UQ plugin test: an uncertainty analysis written in GMAT's own script language.
+%
+%  The spacecraft coasts for 600 s, then RunUncertaintyAnalysis analyses the next
+%  90 minutes from the state at that moment: a deterministic burn, then a correction
+%  that targets the position at the end, with execution, navigation and injection
+%  errors and an uncertain drag coefficient.  The results are copied into variables
+%  and written to a report.
+%
+%  check_plugin.py fills in the two @...@ paths and compares the results with the
+%  same analysis run directly from Python.
+
+Create Spacecraft Sat;
+Sat.DateFormat = UTCGregorian;
+Sat.Epoch = '01 Jan 2026 12:00:00.000';
+Sat.CoordinateSystem = EarthMJ2000Eq;
+Sat.DisplayStateType = Cartesian;
+Sat.X = 6778.1363;
+Sat.Y = 0;
+Sat.Z = 0;
+Sat.VX = 0;
+Sat.VY = 6.7;
+Sat.VZ = 3.8;
+Sat.DryMass = 500;
+Sat.Cd = 2.2;
+Sat.DragArea = 4;
+
+Create ForceModel FM;
+FM.CentralBody = Earth;
+FM.PrimaryBodies = {Earth};
+FM.GravityField.Earth.Degree = 2;
+FM.GravityField.Earth.Order = 0;
+FM.Drag.AtmosphereModel = Exponential;
+FM.ErrorControl = RSSStep;
+
+Create Propagator Prop;
+Prop.FM = FM;
+Prop.Type = PrinceDormand78;
+Prop.InitialStepSize = 60;
+Prop.Accuracy = 1e-12;
+Prop.MinStep = 0;
+Prop.MaxStep = 600;
+
+%----------------------------------------
+%  GMAT-UQ resources
+%----------------------------------------
+Create StateDispersion Injection;
+Injection.Sigmas = [0.1 0.3 0.1 1e-4 5e-5 5e-5];
+Injection.Frame = RIC;
+
+Create ManeuverErrorModel Engine;
+Engine.FixedMagnitudeSigma = 1e-5;
+Engine.ProportionalMagnitudeSigma = 0.003;
+Engine.FixedPointingSigma = 1e-5;
+Engine.ProportionalPointingSigma = 0.005;
+
+Create NavigationErrorModel Tracking;
+Tracking.Sigmas = [0.02 0.02 0.02 2e-5 2e-5 2e-5];
+
+Create UncertainManeuver Raise;
+Raise.Time = 300;
+Raise.DeltaV = [0.0 0.02 0.01];
+Raise.ErrorModel = Engine;
+
+Create UncertainManeuver TCM;
+TCM.Time = 2400;
+TCM.ErrorModel = Engine;
+TCM.Navigation = Tracking;
+TCM.Target = {X, Y, Z};
+TCM.TargetTime = 5400;
+
+Create UncertaintyAnalysis UQ;
+UQ.Spacecraft = Sat;
+UQ.Propagator = Prop;
+UQ.Duration = 5400;
+UQ.InitialDispersion = Injection;
+UQ.Maneuvers = {Raise, TCM};
+UQ.ConsiderParameters = {Cd};
+UQ.ConsiderSigmas = [0.22];
+UQ.FinalTarget = {RMAG, INC};
+UQ.Methods = {LinCov, SigmaPoint, MonteCarlo};
+UQ.Samples = 40;
+UQ.Seed = 7;
+UQ.Workers = 2;
+UQ.DeltaVSamples = 5000;
+UQ.ReportFile = '@REPORT_JSON@';
+
+Create Variable DV99 DVMean MCDV99 PosSigma VelSigma Trusted Agree Index;
+
+Create ReportFile Results;
+Results.Filename = '@RESULTS_TXT@';
+Results.WriteHeaders = False;
+Results.Precision = 16;
+Results.ColumnWidth = 26;
+Results.WriteReport = False;
+
+BeginMissionSequence;
+Propagate Prop(Sat) {Sat.ElapsedSecs = 600};
+RunUncertaintyAnalysis UQ;
+DV99 = UQ.DeltaV99;
+DVMean = UQ.DeltaVMean;
+MCDV99 = UQ.MonteCarloDeltaV99;
+PosSigma = UQ.FinalPositionSigma;
+VelSigma = UQ.FinalVelocitySigma;
+Trusted = UQ.LinearTrusted;
+Agree = UQ.EnginesAgree;
+Index = UQ.NonlinearityIndex;
+Report Results DV99 DVMean MCDV99 PosSigma VelSigma Trusted Agree Index;
