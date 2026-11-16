@@ -12,13 +12,24 @@ not answer:
   covariance along the trajectory and at the target, for example as an ellipse
   in the lunar B-plane.
 
-The inputs are the three error sources that drive both answers: the dispersion
-of the initial state, the execution error of every maneuver (Gates model) and
-the navigation error at every correction maneuver.
+The inputs are the error sources that drive both answers: the dispersion of
+the initial state, the execution error of every maneuver (Gates model), the
+navigation error at every correction maneuver (which can come straight from a
+GMAT estimation run), process noise, and uncertain model parameters such as a
+drag or reflectivity coefficient.
 
 GMAT does the propagation. GMAT-UQ reads the spacecraft, force model and
 propagator from an ordinary GMAT script and drives them through the GMAT Python
 API. A built-in two-body model lets everything run without GMAT too.
+
+There are two ways to use it: a configuration file (or the Python API), or the
+GMAT plugin, which puts the analysis in GMAT's own script language:
+
+```matlab
+Propagate Prop(Sat) {Sat.ElapsedSecs = 600};
+RunUncertaintyAnalysis UQ;
+Report Results UQ.DeltaV99 UQ.FinalPositionSigma UQ.LinearTrusted;
+```
 
 ## The three engines
 
@@ -34,25 +45,18 @@ the assumptions.
 
 ## Status
 
-Version 1.0.0. Tested against GMAT R2026a on Windows with Python 3.13.
+Version 1.0.0. Every part of the original design is implemented, and all
+eight validation tests pass ([docs/validation.md](docs/validation.md)).
 
-| Part of the design | State |
+| Tested with | How |
 | --- | --- |
-| Error models: initial dispersion, Gates execution error, navigation error, process noise | done |
-| Linear covariance engine, with delta-V statistics | done |
-| Sigma-point check | done |
-| Closed-loop Monte Carlo, parallel and reproducible | done |
-| Statistics and consistency report, JSON output, command line | done |
-| GMAT in the loop through the GMAT Python API | done |
-| Validation tests 1 to 7 | done, all pass ([docs/validation.md](docs/validation.md)) |
-| Validation test 8 (reproduce a published case) | **not done** |
-| C++ plugin with script-level resources (`Create ManeuverErrorModel ...`) | **not done**; a TOML file plays that role |
-| Linux and macOS | not tested; continuous integration runs the GMAT-free tests on Linux |
+| GMAT R2026a, Windows, Python 3.13 | full test suite and validation campaign, locally |
+| GMAT R2026a, Windows and Ubuntu, Python 3.12 | full test suite, plugin built and run inside GMAT, by continuous integration |
+| GMAT R2025a, Windows, Python 3.12 | full test suite, locally |
+| Python 3.11 to 3.13, Windows and Ubuntu, no GMAT | GMAT-free tests, by continuous integration |
 
-The C++ plugin of the original design is the main gap. It needs GMAT's build
-toolchain, and no untested C++ is shipped here. The configuration file mirrors
-the resources the plugin would add, so moving to it later changes the syntax,
-not the models.
+Not tested: macOS, and the plugin with GMAT R2025a (it is built against the
+R2026a headers; a plugin must match its GMAT release).
 
 ## Install
 
@@ -71,8 +75,20 @@ set GMAT_ROOT=C:\path\to\GMAT        (Windows)
 export GMAT_ROOT=/path/to/GMAT       (Linux, macOS)
 ```
 
-Your Python version must be one GMAT ships an API for (3.9 to 3.14 in R2026a;
-GMAT-UQ itself needs 3.11 or newer). Only R2026a has been tested.
+Your Python version must be one GMAT ships an API for (look in GMAT's
+`bin/gmatpy` folder: 3.9 to 3.14 in R2026a, up to 3.12 in R2025a). GMAT-UQ
+itself needs 3.11 or newer.
+
+For the plugin, see [docs/plugin.md](docs/plugin.md).
+
+## Documentation
+
+- [Tutorial 1](docs/tutorials/01-first-analysis.md): a first analysis, without GMAT.
+- [Tutorial 2](docs/tutorials/02-your-gmat-script.md): your own GMAT script, an uncertain Cd, and the navigation error of a GMAT estimation run.
+- [Tutorial 3](docs/tutorials/03-gmat-plugin.md): the analysis inside a GMAT script, with the plugin.
+- [Theory](docs/theory.md): the models, the equations and their assumptions.
+- [Configuration reference](docs/configuration.md) and [plugin reference](docs/plugin.md).
+- [Validation report](docs/validation.md).
 
 ## Quick start without GMAT
 
@@ -85,18 +101,19 @@ corrections, and prints:
 
 ```
 Linear covariance
-  final position sigma (x, y, z) [km]   : ...
+  final position sigma (x, y, z) [km]   : 0.09085, 0.07245, 0.07063
   nominal delta-V [m/s]                  : 1751.1
-  delta-V 99 [m/s]                      : 1777.5
+  delta-V 99 [m/s]                      : 1777.72
 Sigma-point check
   verdict                                : linear results trusted
-Monte Carlo (1000 samples, nonlinear guidance, 4 worker(s), ...)
-  delta-V 99 [m/s]                      : ... (95% interval ... to ...)
+Monte Carlo (1000 samples, nonlinear guidance, 4 worker(s), 8.2 s)
+  delta-V 99 [m/s]                      : 1776.89 (95% interval 1776.09 to 1779.03)
 Linear covariance against Monte Carlo
   verdict                                : engines agree
 ```
 
-The full results go to a JSON report.
+The full results go to a JSON report. [Tutorial 1](docs/tutorials/01-first-analysis.md)
+walks through this output.
 
 ## Quick start with GMAT
 
@@ -190,7 +207,11 @@ environment and every measurement, is [docs/validation.md](docs/validation.md).
 | 5 | Near-rectilinear halo orbit, two revolutions | the sigma-point check flags the perilune arcs, where the engines differ by orders of magnitude |
 | 6 | Same seed on 1, 4 and 16 worker processes, with and without GMAT | bit-identical |
 | 7 | GMAT's files and a script's outputs before and after an analysis | byte-identical |
-| 8 | A published case | not run |
+| 8 | The published Gates (1963) execution-error model: the report's construction and formula | reproduced; the report's two stated properties hold to rounding |
+
+Test 8 of the original design asked for a complete published mission. The
+public papers reviewed rely on navigation filters whose outputs GMAT-UQ takes
+as inputs, so none could be reproduced number for number; that remains open.
 
 On the lunar case the linear analysis, sigma-point check included, takes about
 one second. A 2,000-sample Monte Carlo on one core takes about 500 s
@@ -199,14 +220,21 @@ one second. A 2,000-sample Monte Carlo on one core takes about 500 s
 The GMAT parameters GMAT-UQ computes itself (`BdotT`, `BdotR`, the Keplerian
 elements, `C3Energy` and others) match GMAT's own reports to 12 digits.
 
+The plugin test runs an analysis written in GMAT's script language with
+GMAT's console application and checks that GMAT reports the same numbers, to
+every digit, as the same analysis set up directly in Python. Test coverage of
+the Python package is 96% (with GMAT installed).
+
 ## Limitations
 
 - Maneuvers are impulsive and happen at fixed times. Targets are evaluated at
   fixed times. Stopping conditions such as "at periapsis" are not modelled.
 - The navigation error at each correction is an input. No navigation filter
   runs in the loop, and the error is taken as independent of the dispersion.
-- Only the six orbit-state components are dispersed; uncertain drag or
-  reflectivity coefficients are not.
+- Consider parameters are constant over the mission; time-varying parameter
+  errors (Gauss-Markov processes) are not modelled.
+- The plugin delegates the numerics to the Python package, so it needs Python
+  and `gmat-uq` at run time, and each run reloads GMAT through its API.
 - The spacecraft in the GMAT script must use an MJ2000Eq coordinate system
   centred on the force model's central body.
 - A target must be differentiable at the nominal (not `ECC` on a circular
@@ -218,14 +246,14 @@ elements, `C3Energy` and others) match GMAT's own reports to 12 digits.
 
 ```
 cd gmat-uq
-python -m pytest                              # 139 tests; 18 more run when GMAT_ROOT is set
+python -m pytest                              # 157 tests; 18 more run when GMAT_ROOT is set
 python validation/run_validation.py           # the validation campaign; writes docs/validation.md
 python validation/make_examples.py            # regenerates the example configurations
 ```
 
 ```
 src/gmat_uq/
-  models.py        error models (Gates, state dispersion, navigation, process noise)
+  models.py        error models (Gates, state dispersion, navigation, process noise, consider parameters)
   dynamics/        propagators: gmat.py (GMAT API), ode.py (two-body, J2, CR3BP)
   targets.py       target functions with GMAT's parameter names
   mission.py       mission definition, nominal trajectory, linear guidance law
@@ -240,8 +268,11 @@ src/gmat_uq/
 tests/             unit and integration tests
 validation/        validation cases and campaign
 examples/          ready-to-run configurations
-docs/              theory, configuration reference, validation report
+docs/              tutorials, theory, configuration and plugin references, validation report
+../plugins/GmatUQPlugin/   the GMAT plugin (C++), its build files and its end-to-end test
 ```
+
+The plugin is built and tested by `.github/workflows/gmat-uq-plugin.yml`.
 
 ## Relation to GMAT
 

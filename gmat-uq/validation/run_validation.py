@@ -45,6 +45,7 @@ from gmat_uq.stats import compare_covariance, wilks_sample_size
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import cases  # noqa: E402
+import gates1963  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 RESULTS = HERE / "results" / "validation_results.json"
@@ -381,6 +382,17 @@ def test_7_no_side_effects(options, fingerprint_before) -> dict:
     }
 
 
+def test_8_published_model(options) -> dict:
+    measurements = gates1963.reproduce(seed=options.seed)
+    return {
+        "id": 8,
+        "title": "Published execution-error model reproduced: Gates (1963), JPL TR 32-504",
+        "criterion": "the report's construction, its second-moment formula and its two stated properties are reproduced",
+        "passed": bool(measurements["passed"]),
+        "measurements": measurements,
+    }
+
+
 # -- report -------------------------------------------------------------------------------------------
 def _status(test: dict) -> str:
     if test.get("skipped"):
@@ -423,9 +435,11 @@ def write_markdown(results: dict) -> str:
     for test in results["tests"]:
         lines.append(f"| {test['id']} | {test['title']} | {test['criterion']} | **{_status(test)}** |")
     lines += [
-        "| 8 | A published case whose inputs are public | Published statistics reproduced | **not run** |",
         "",
-        "Test 8 of the design has not been done: no published case was reproduced. It remains open.",
+        "Test 8 of the design asked for a published *mission* to be reproduced. The public papers reviewed (listed",
+        "under test 8) depend on navigation filters whose outputs GMAT-UQ takes as inputs, so none could be reproduced",
+        "number for number. Test 8 therefore reproduces the published model GMAT-UQ is built on instead; reproducing a",
+        "complete published mission remains open.",
         "",
     ]
 
@@ -545,6 +559,39 @@ def write_markdown(results: dict) -> str:
         ("Temporary files left behind", str(len(m.get("temporary_files_left_behind", [])))),
     ], m.get("note", ""))
 
+    m = tests.get(8, {}).get("measurements", {})
+    if m:
+        lines += [
+            "## Test 8: Gates (1963) execution-error model",
+            "",
+            f"Reference: {m['reference']}. The report builds the error from four independent sources (shutoff, resolution,",
+            "pointing and autopilot errors), with the pointing errors drawn from a spherical Gaussian vector crossed with",
+            "the command, and gives the second moment when the command itself is random. GMAT-UQ implements the same",
+            "model in a different way (per-axis sigmas on a frame attached to the command). The check compares both.",
+            "",
+            "| Measurement | Value |",
+            "| --- | --- |",
+            f"| Draws (random commands, each with its own error) | {m['samples']:,} |",
+            f"| Report's construction against the report's formula: covariance test p-value | {_number(m['construction_p_value'])} |",
+            f"| GMAT-UQ's sampler against the report's formula: covariance test p-value | {_number(m['sampler_p_value'])} |",
+            f"| GMAT-UQ's expected covariance against the report's formula: largest relative difference | {_number(m['expected_covariance_largest_relative_difference'])} |",
+            f"| Stated property: equal proportional errors are spherical (relative error) | {_number(m['spherical_property_proportional_error'])} |",
+            f"| Stated property: equal fixed errors are spherical (relative error) | {_number(m['spherical_property_fixed_error'])} |",
+            "",
+            "Papers reviewed for a complete published mission case, and why none was reproduced:",
+            "",
+            "- D. Woffinden, \"Evaluating Delta-V Dispersions Using Linear Covariance Techniques with Applications to",
+            "  Rendezvous and Docking\", AAS 24-144, 2024 ([NTRS 20240000610](https://ntrs.nasa.gov/citations/20240000610)):",
+            "  an Orion rendezvous in a near-rectilinear halo orbit; the vehicle and sensor models are not fully published.",
+            "- R. Zanetti, D. Woffinden, A. Sievers, \"Multiple Event Triggers in Linear Covariance Analysis for Spacecraft",
+            "  Rendezvous\" ([PDF](https://sites.utexas.edu/near/wp-content/uploads/sites/6030/2017/04/LinCovRndvz.pdf)):",
+            "  navigation comes from a filter with gyroscope, star-tracker, GPS and lidar models.",
+            "- R. Zanetti, \"Autonomous Mid-Course Navigation for Lunar Return\"",
+            "  ([PDF](https://sites.utexas.edu/near/wp-content/uploads/sites/6030/2017/04/CislunarLinCov.pdf)):",
+            "  navigation comes from an onboard optical filter.",
+            "",
+        ]
+
     timing = results.get("timing")
     lines.append("## Performance on the lunar transfer case")
     lines.append("")
@@ -622,6 +669,7 @@ def main(argv=None) -> int:
         (5, lambda: test_5_halo_orbit(options)),
         (6, lambda: test_6_reproducibility(options, context)),
         (7, lambda: test_7_no_side_effects(options, fingerprint)),
+        (8, lambda: test_8_published_model(options)),
     ]
     tests = []
     for number, run in plan:

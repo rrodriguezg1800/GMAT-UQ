@@ -9,7 +9,7 @@ described under Environment; none is a target or an estimate unless it says so.
 - GMAT: R2026a (Build Date: Mar 26 2026  15:02:55)
 - Platform: Windows-11-10.0.26200-SP0, 6 logical processors
 - Monte Carlo samples: 2000; worker processes: 6; master seed: 2026
-- Run date: 2026-11-15 19:51 UTC
+- Run date: 2026-11-16 06:58 UTC
 
 ## Summary
 
@@ -22,9 +22,12 @@ described under Environment; none is a target or an estimate unless it says so.
 | 5 | Several revolutions of a near-rectilinear halo orbit | the arc is flagged by the sigma-point check no later than the node where the two engines first differ by more than 10% | **pass** |
 | 6 | One seed on 1, 4 and 16 worker processes | bit-identical results | **pass** |
 | 7 | GMAT is left untouched by an analysis | GMAT's files and a script's own outputs are byte-identical before and after GMAT-UQ runs | **pass** |
-| 8 | A published case whose inputs are public | Published statistics reproduced | **not run** |
+| 8 | Published execution-error model reproduced: Gates (1963), JPL TR 32-504 | the report's construction, its second-moment formula and its two stated properties are reproduced | **pass** |
 
-Test 8 of the design has not been done: no published case was reproduced. It remains open.
+Test 8 of the design asked for a published *mission* to be reproduced. The public papers reviewed (listed
+under test 8) depend on navigation filters whose outputs GMAT-UQ takes as inputs, so none could be reproduced
+number for number. Test 8 therefore reproduces the published model GMAT-UQ is built on instead; reproducing a
+complete published mission remains open.
 
 ## Test 1: Gates sampler
 
@@ -85,7 +88,7 @@ Case: 185 km parking orbit to a lunar flyby; Earth, Moon and Sun point masses pr
 | Final target sigmas (BdotT, BdotR), Monte Carlo | 0.6358, 0.5942 |
 | Largest sigma-point nonlinearity index | 0.03189 |
 | Correction size, 1-sigma (TCM1, TCM2, TCM3) | 8.179 m/s, 0.2085 m/s, 0.1029 m/s |
-| Monte Carlo wall time | 107.2 s on 6 workers |
+| Monte Carlo wall time | 117.9 s on 6 workers |
 
 ## Test 5: near-rectilinear halo orbit
 
@@ -100,16 +103,16 @@ The nonlinearity is concentrated at the perilune passages (days 3.28 and 9.84). 
 | 0.82 | 2.93e-06 | no | 0.952 to 1.03 | 4.78% |
 | 1.64 | 7.51e-05 | no | 0.952 to 1.03 | 4.78% |
 | 2.46 | 0.00232 | no | 0.952 to 1.03 | 4.78% |
-| 3.28 | 449 | yes | 0.909 to 3.64 | 264% |
-| 4.1 | 757 | yes | 0.952 to 1.03 | 4.76% |
+| 3.28 | 720 | yes | 0.909 to 3.64 | 264% |
+| 4.1 | 650 | yes | 0.952 to 1.03 | 4.76% |
 | 4.92 | 0.0187 | no | 0.952 to 1.03 | 4.77% |
 | 5.74 | 0.005 | no | 0.952 to 1.03 | 4.77% |
 | 6.56 | 0.00278 | no | 0.952 to 1.03 | 4.77% |
 | 7.38 | 0.00363 | no | 0.952 to 1.03 | 4.77% |
 | 8.2 | 0.00434 | no | 0.952 to 1.03 | 4.76% |
 | 9.02 | 0.0837 | no | 0.952 to 1.04 | 4.77% |
-| 9.84 | 41.2 | yes | 0.618 to 19.9 | 1.89e+03% |
-| 10.7 | 1.26e+04 | yes | 0.957 to 1.06 | 5.86% |
+| 9.84 | 48.6 | yes | 0.618 to 19.9 | 1.89e+03% |
+| 10.7 | 1.23e+04 | yes | 0.957 to 1.06 | 5.86% |
 | 11.5 | 0.0839 | no | 0.956 to 1.03 | 4.41% |
 | 12.3 | 0.0395 | no | 0.955 to 1.03 | 4.52% |
 | 13.1 | 0.0203 | no | 0.955 to 1.03 | 4.55% |
@@ -134,18 +137,46 @@ GMAT-UQ drives GMAT through its API and is not loaded into GMAT as a plugin, so 
 | GMAT's bin and plugins folders unchanged (SHA-256 of every file) | yes |
 | Temporary files left behind | 0 |
 
+## Test 8: Gates (1963) execution-error model
+
+Reference: C. R. Gates, "A Simplified Model of Midcourse Maneuver Execution Errors", JPL Technical Report 32-504, 1963 (NASA NTRS 19640003365). The report builds the error from four independent sources (shutoff, resolution,
+pointing and autopilot errors), with the pointing errors drawn from a spherical Gaussian vector crossed with
+the command, and gives the second moment when the command itself is random. GMAT-UQ implements the same
+model in a different way (per-axis sigmas on a frame attached to the command). The check compares both.
+
+| Measurement | Value |
+| --- | --- |
+| Draws (random commands, each with its own error) | 400,000 |
+| Report's construction against the report's formula: covariance test p-value | 0.8987 |
+| GMAT-UQ's sampler against the report's formula: covariance test p-value | 0.3979 |
+| GMAT-UQ's expected covariance against the report's formula: largest relative difference | 0.0004702 |
+| Stated property: equal proportional errors are spherical (relative error) | 2.002e-16 |
+| Stated property: equal fixed errors are spherical (relative error) | 0 |
+
+Papers reviewed for a complete published mission case, and why none was reproduced:
+
+- D. Woffinden, "Evaluating Delta-V Dispersions Using Linear Covariance Techniques with Applications to
+  Rendezvous and Docking", AAS 24-144, 2024 ([NTRS 20240000610](https://ntrs.nasa.gov/citations/20240000610)):
+  an Orion rendezvous in a near-rectilinear halo orbit; the vehicle and sensor models are not fully published.
+- R. Zanetti, D. Woffinden, A. Sievers, "Multiple Event Triggers in Linear Covariance Analysis for Spacecraft
+  Rendezvous" ([PDF](https://sites.utexas.edu/near/wp-content/uploads/sites/6030/2017/04/LinCovRndvz.pdf)):
+  navigation comes from a filter with gyroscope, star-tracker, GPS and lidar models.
+- R. Zanetti, "Autonomous Mid-Course Navigation for Lunar Return"
+  ([PDF](https://sites.utexas.edu/near/wp-content/uploads/sites/6030/2017/04/CislunarLinCov.pdf)):
+  navigation comes from an onboard optical filter.
+
 ## Performance on the lunar transfer case
 
 | Measurement | Value | Design target |
 | --- | --- | --- |
-| Nominal trajectory with state transition matrices | 0.08671 s | |
-| Linear covariance, including 20,000 delta-V samples | 0.05797 s | |
+| Nominal trajectory with state transition matrices | 0.08662 s | |
+| Linear covariance, including 20,000 delta-V samples | 0.05763 s | |
 | Linear analysis in total, relative to the nominal propagation | 1.67 times | under 5 times: met |
-| Sigma-point check | 0.4583 s | |
-| Monte Carlo cost on one core | 0.2422 s per sample (200 samples timed) | |
-| 2,000-sample Monte Carlo on one core, extrapolated from that rate | 484.5 s | |
-| Speed-up of the linear analysis over that Monte Carlo | 3.35e+03 times | at least 100 times: met |
-| Speed-up when the sigma-point check is included | 803 times | |
+| Sigma-point check | 0.5099 s | |
+| Monte Carlo cost on one core | 0.2536 s per sample (200 samples timed) | |
+| 2,000-sample Monte Carlo on one core, extrapolated from that rate | 507.3 s | |
+| Speed-up of the linear analysis over that Monte Carlo | 3.52e+03 times | at least 100 times: met |
+| Speed-up when the sigma-point check is included | 775 times | |
 
 ## Sample size
 

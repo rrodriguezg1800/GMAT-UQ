@@ -49,6 +49,14 @@ P_exec(u) = sigma_along^2  û û^T  +  sigma_cross^2 (I - û û^T)
 The pointing sigmas are **per axis**. Some references quote a total pointing
 error over both axes; divide it by √2 before using it here.
 
+This is the model of C. R. Gates, *A Simplified Model of Midcourse Maneuver
+Execution Errors*, JPL Technical Report 32-504, 1963. In the report's terms,
+s1 is the resolution error, s2 the shutoff error, s3 the autopilot error and
+s4 the pointing error; the report builds the pointing errors by crossing the
+command with a spherical Gaussian vector of per-axis sigma s4, which is the
+per-axis model above. Validation test 8 checks GMAT-UQ against the report's
+construction and formula.
+
 A commanded delta-V of exactly zero has no direction. The fixed errors are then
 applied isotropically with the same total variance, s1² + 2 s3².
 
@@ -120,8 +128,10 @@ and 3-sigma ellipses.
 ### Delta-V statistics
 
 Delta-V is a magnitude, so its distribution is not Gaussian, and the
-magnitudes of successive corrections are correlated. GMAT-UQ therefore samples
-the *linear system itself*: each sample draws the initial error, the navigation
+magnitudes of successive corrections are correlated. A common shortcut samples
+each burn's delta-V from its own covariance (Woffinden, AAS 24-144, 2024, calls
+it the numerical approach and notes that it ignores the correlation between
+maneuvers). GMAT-UQ instead samples the *linear system itself*: each sample draws the initial error, the navigation
 errors and the execution errors, and pushes them through the same matrices.
 A sample costs a few matrix products and no propagation. The execution error of
 a sample uses the Gates model on that sample's own commanded delta-V, not the
@@ -134,6 +144,28 @@ quantile with probability F(u−1) − F(l−1), where F is the Binomial(n, p)
 distribution function. The smallest sample whose maximum bounds the p-quantile
 with confidence β is the Wilks number, the smallest N with 1 − pᴺ ≥ β: 299 for
 p = 0.99 and β = 0.95.
+
+### Consider parameters
+
+A consider parameter p (for example a drag coefficient) is uncertain,
+constant over the mission, and neither estimated nor corrected. Its error
+δp ~ N(0, σ²) augments the state. Over interval i the transition matrix
+becomes
+
+```
+[ Φ_i  Ψ_i ]
+[ 0    I   ]
+```
+
+where Ψ_i is the change of the state arriving at node i+1 per unit change of
+p, with the state leaving node i held fixed. Ψ is computed by central
+differences over ±1σ of p, which gives the secant slope over the range the
+parameter actually spans and stays clear of integration noise. The guidance
+gain acts on the orbit state only (the flight software does not know δp), so
+a parameter error shows up as a delivery error even with perfect knowledge
+and execution. In Monte Carlo the true value is drawn once per sample and
+the truth is propagated with it, while corrections are designed with the
+nominal value.
 
 ### Process noise
 
@@ -236,5 +268,5 @@ interval and further than 2% from the Monte Carlo estimate.
 - Statistics are Gaussian in the linear engine. Strongly nonlinear arcs need
   Monte Carlo; the sigma-point check says where.
 - The navigation error is an input, not the output of a filter in the loop.
-- Only the six orbit-state components are dispersed. Uncertain parameters such
-  as drag or reflectivity coefficients are not yet supported.
+- Consider parameters are constant over the mission; a parameter that varies
+  in time (a Gauss-Markov drag scale factor, for example) is not modelled.

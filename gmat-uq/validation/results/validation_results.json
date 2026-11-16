@@ -7,7 +7,7 @@
     "gmat": "R2026a (Build Date: Mar 26 2026  15:02:55)",
     "platform": "Windows-11-10.0.26200-SP0",
     "cpu_count": 6,
-    "date_utc": "2026-11-15 19:51"
+    "date_utc": "2026-11-16 06:58"
   },
   "options": {
     "samples": 2000,
@@ -27,7 +27,7 @@
         "mean_test_p_value": 0.1832911897365137,
         "largest_sigma_difference_percent": 0.47168439629433623
       },
-      "elapsed_seconds": 0.030952399945817888
+      "elapsed_seconds": 0.03009150002617389
     },
     {
       "id": 2,
@@ -48,7 +48,7 @@
           5.568786106207704
         ]
       },
-      "elapsed_seconds": 2.24676140001975
+      "elapsed_seconds": 2.2187105999328196
     },
     {
       "id": 3,
@@ -97,9 +97,9 @@
           "transfer_time_s": 4607.51112940626,
           "nominal_delta_v_mps": 1751.1033317252602
         },
-        "sigma_point_max_index": 0.05041629145439461
+        "sigma_point_max_index": 0.050416346564366554
       },
-      "elapsed_seconds": 23.944347799988464
+      "elapsed_seconds": 23.48226430010982
     },
     {
       "id": 4,
@@ -151,7 +151,7 @@
           "moon_distance_at_target_km": 36055.51275456441,
           "v_infinity_kmps": 0.8993803880514185
         },
-        "sigma_point_max_index": 0.031891257157740265,
+        "sigma_point_max_index": 0.031891327994061476,
         "sigma_point_linear_ok": true,
         "per_maneuver_correction_sigma_mps": {
           "TLI": 0.0,
@@ -159,10 +159,10 @@
           "TCM2": 0.2084805207857622,
           "TCM3": 0.10288714891734252
         },
-        "monte_carlo_wall_seconds": 107.20854849996977,
+        "monte_carlo_wall_seconds": 117.89349719998427,
         "monte_carlo_workers": 6
       },
-      "elapsed_seconds": 188.132245899993
+      "elapsed_seconds": 201.79643999994732
     },
     {
       "id": 5,
@@ -197,7 +197,7 @@
           },
           {
             "time_days": 1.640558043925745,
-            "sigma_point_index": 7.509354631795348e-05,
+            "sigma_point_index": 7.509342014258407e-05,
             "flagged": false,
             "monte_carlo_sigma_ratio_min": 0.9521603988553416,
             "monte_carlo_sigma_ratio_max": 1.0280013862541757,
@@ -205,7 +205,7 @@
           },
           {
             "time_days": 2.4608370658886174,
-            "sigma_point_index": 0.0023193641476574015,
+            "sigma_point_index": 0.0023193597800109027,
             "flagged": false,
             "monte_carlo_sigma_ratio_min": 0.952150792267663,
             "monte_carlo_sigma_ratio_max": 1.027899194012589,
@@ -213,7 +213,7 @@
           },
           {
             "time_days": 3.28111608785149,
-            "sigma_point_index": 449.44878396248356,
+            "sigma_point_index": 719.625259822434,
             "flagged": true,
             "monte_carlo_sigma_ratio_min": 0.9093496620916691,
             "monte_carlo_sigma_ratio_max": 3.6412029996108575,
@@ -221,7 +221,7 @@
           },
           {
             "time_days": 4.101395109814362,
-            "sigma_point_index": 756.7623061219575,
+            "sigma_point_index": 650.0284029078992,
             "flagged": true,
             "monte_carlo_sigma_ratio_min": 0.9523939179113742,
             "monte_carlo_sigma_ratio_max": 1.0280814290002769,
@@ -229,7 +229,7 @@
           },
           {
             "time_days": 4.921674131777235,
-            "sigma_point_index": 0.01867983419106602,
+            "sigma_point_index": 0.01867994061233166,
             "flagged": false,
             "monte_carlo_sigma_ratio_min": 0.952281328217267,
             "monte_carlo_sigma_ratio_max": 1.0278988215927634,
@@ -237,7 +237,7 @@
           },
           {
             "time_days": 5.7419531537401065,
-            "sigma_point_index": 0.005002156634485769,
+            "sigma_point_index": 0.005002160936448073,
             "flagged": false,
             "monte_carlo_sigma_ratio_min": 0.9522750179446687,
             "monte_carlo_sigma_ratio_max": 1.0278653255926604,
@@ -245,7 +245,7 @@
           },
           {
             "time_days": 6.56223217570298,
-            "sigma_point_index": 0.002784259443574329,
+            "sigma_point_index": 0.002784259622471388,
             "flagged": false,
             "monte_carlo_sigma_ratio_min": 0.9522951385750956,
             "monte_carlo_sigma_ratio_max": 1.0278491319242233,
@@ -253,7 +253,7 @@
           },
           {
             "time_days": 7.382511197665851,
-            "sigma_point_index": 0.0036265601042833246,
+            "sigma_point_index": 0.003626561944206413,
             "flagged": false,
             "monte_carlo_sigma_ratio_min": 0.952341814186633,
             "monte_carlo_sigma_ratio_max": 1.0278678437408255,
@@ -261,7 +261,7 @@
           },
           {
             "time_days": 8.202790219628724,
-            "sigma_point_index": 0.0043433871635929515,
+            "sigma_point_index": 0.004343367816311709,
             "flagged": false,
             "monte_carlo_sigma_ratio_min": 0.9523687113747726,
             "monte_carlo_sigma_ratio_max": 1.0281014864743987,
@@ -269,7 +269,7 @@
           },
           {
             "time_days": 9.023069241591596,
-            "sigma_point_index": 0.0836638069111677,
+            "sigma_point_index": 0.08366679919362167,
             "flagged": false,
             "monte_carlo_sigma_ratio_min": 0.9522570254748276,
             "monte_carlo_sigma_ratio_max": 1.0369053931500056,
@@ -277,7 +277,7 @@
           },
           {
             "time_days": 9.84334826355447,
-            "sigma_point_index": 41.227821219138924,
+            "sigma_point_index": 48.55444221402097,
             "flagged": true,
             "monte_carlo_sigma_ratio_min": 0.6177571344155911,
             "monte_carlo_sigma_ratio_max": 19.858773889860927,
@@ -285,7 +285,7 @@
           },
           {
             "time_days": 10.663627285517341,
-            "sigma_point_index": 12604.363685160135,
+            "sigma_point_index": 12348.913391911175,
             "flagged": true,
             "monte_carlo_sigma_ratio_min": 0.956997334030297,
             "monte_carlo_sigma_ratio_max": 1.058568614589578,
@@ -293,7 +293,7 @@
           },
           {
             "time_days": 11.483906307480213,
-            "sigma_point_index": 0.08391424298511757,
+            "sigma_point_index": 0.08392224500495955,
             "flagged": false,
             "monte_carlo_sigma_ratio_min": 0.9558754741725884,
             "monte_carlo_sigma_ratio_max": 1.0289757318918626,
@@ -301,7 +301,7 @@
           },
           {
             "time_days": 12.304185329443087,
-            "sigma_point_index": 0.039480604640989035,
+            "sigma_point_index": 0.03948139927446064,
             "flagged": false,
             "monte_carlo_sigma_ratio_min": 0.9548490399917111,
             "monte_carlo_sigma_ratio_max": 1.02726313160716,
@@ -309,7 +309,7 @@
           },
           {
             "time_days": 13.12446435140596,
-            "sigma_point_index": 0.02026540813754348,
+            "sigma_point_index": 0.02026575148049404,
             "flagged": false,
             "monte_carlo_sigma_ratio_min": 0.9545178491428594,
             "monte_carlo_sigma_ratio_max": 1.027218401053511,
@@ -317,7 +317,7 @@
           }
         ]
       },
-      "elapsed_seconds": 20.733732900000177
+      "elapsed_seconds": 21.86114599998109
     },
     {
       "id": 6,
@@ -330,7 +330,7 @@
         "gmat_dynamics_samples": 32,
         "gmat_dynamics_identical_on_1_4_16_workers": true
       },
-      "elapsed_seconds": 27.4774449999677
+      "elapsed_seconds": 29.47608119994402
     },
     {
       "id": 7,
@@ -344,20 +344,46 @@
         "temporary_files_left_behind": [],
         "note": "GMAT-UQ drives GMAT through its API and is not loaded into GMAT as a plugin, so this test replaces the design's 'sample scripts with the plugin loaded but unused'."
       },
-      "elapsed_seconds": 3.5539512999821454
+      "elapsed_seconds": 3.7752910000272095
+    },
+    {
+      "id": 8,
+      "title": "Published execution-error model reproduced: Gates (1963), JPL TR 32-504",
+      "criterion": "the report's construction, its second-moment formula and its two stated properties are reproduced",
+      "passed": true,
+      "measurements": {
+        "reference": "C. R. Gates, \"A Simplified Model of Midcourse Maneuver Execution Errors\", JPL Technical Report 32-504, 1963 (NASA NTRS 19640003365)",
+        "samples": 400000,
+        "construction_p_value": 0.8986574081954523,
+        "construction_largest_sigma_difference_percent": 0.13725480351163277,
+        "sampler_p_value": 0.39786965960856174,
+        "sampler_largest_sigma_difference_percent": 0.2180815998560348,
+        "expected_covariance_largest_relative_difference": 0.0004701614019190963,
+        "spherical_property_proportional_error": 2.0022526173749535e-16,
+        "spherical_property_fixed_error": 0.0,
+        "checks": {
+          "report_construction_consistent_with_closed_form": true,
+          "gmat_uq_sampler_consistent_with_closed_form": true,
+          "gmat_uq_expected_covariance_matches_closed_form": true,
+          "equal_proportional_errors_are_spherical": true,
+          "equal_fixed_errors_are_spherical": true
+        },
+        "passed": true
+      },
+      "elapsed_seconds": 0.34318929992150515
     }
   ],
   "timing": {
-    "nominal_propagation_with_stm_seconds": 0.0867127999663353,
-    "linear_covariance_seconds": 0.057968700071796775,
-    "linear_covariance_total_seconds": 0.14468150003813207,
-    "linear_total_over_nominal": 1.6685137614550805,
-    "sigma_point_check_seconds": 0.4583007999463007,
+    "nominal_propagation_with_stm_seconds": 0.08661629993002862,
+    "linear_covariance_seconds": 0.05762600002344698,
+    "linear_covariance_total_seconds": 0.1442422999534756,
+    "linear_total_over_nominal": 1.665302028255641,
+    "sigma_point_check_seconds": 0.5098688000580296,
     "delta_v_samples": 20000,
-    "monte_carlo_seconds_per_sample_one_core": 0.24224317500018513,
+    "monte_carlo_seconds_per_sample_one_core": 0.25362962000013795,
     "serial_samples_timed": 200,
-    "monte_carlo_2000_samples_one_core_seconds_extrapolated": 484.4863500003703,
-    "speed_up_over_2000_sample_monte_carlo": 3348.6406338936195,
-    "speed_up_including_sigma_point_check": 803.4835351101987
+    "monte_carlo_2000_samples_one_core_seconds_extrapolated": 507.2592400002759,
+    "speed_up_over_2000_sample_monte_carlo": 3516.7162487279325,
+    "speed_up_including_sigma_point_check": 775.4940101021886
   }
 }

@@ -262,3 +262,17 @@ def test_reads_a_covariance_written_by_gmat_batch_estimator():
     sigmas = np.sqrt(np.diag(knowledge.covariance))
     assert np.allclose(sigmas[:3], [1.7926e-4, 2.9299e-4, 5.0358e-4], rtol=1e-4)  # km
     assert np.all(np.linalg.eigvalsh(knowledge.covariance) > 0.0)
+
+
+def test_gates_1963_model_is_reproduced():
+    """Validation test 8: the report's construction, closed form and stated properties."""
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "validation"))
+    try:
+        import gates1963
+    finally:
+        sys.path.pop(0)
+    result = gates1963.reproduce(samples=150_000, seed=7)
+    assert result["passed"], result["checks"]

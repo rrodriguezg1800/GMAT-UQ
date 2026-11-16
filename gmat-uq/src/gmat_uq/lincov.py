@@ -124,8 +124,8 @@ class LinCovResult:
         return float(np.sqrt(np.sum(self.sigmas(node, after)[3:] ** 2)))
 
     def dv_statistics(self, probability: float = 0.99, confidence: float = 0.95) -> dict | None:
-        """Delta-V statistics from the linear samples (km/s), or ``None`` without samples."""
-        if self.samples is None:
+        """Delta-V statistics from the linear samples (km/s), or ``None`` without samples or maneuvers."""
+        if self.samples is None or not self.nominal.plans:
             return None
         magnitudes = self.samples.dv_magnitudes
         per_maneuver = {

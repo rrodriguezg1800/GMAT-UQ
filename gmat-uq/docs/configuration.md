@@ -49,6 +49,7 @@ and the Earth-Moon mass ratio.
 | `final_time` | required | end of the analysis |
 | `report_times` | none | extra times at which the dispersion is reported |
 | `final_target` | none | target in which the final dispersion is also reported |
+| `epoch_a1mjd` | the script's epoch | GMAT dynamics only: every time in the file is counted from this A.1 modified Julian date instead of the script's epoch (the GMAT plugin uses it to start an analysis in the middle of a mission) |
 
 ### `[mission.initial_dispersion]`
 
@@ -56,8 +57,12 @@ Exactly one of:
 
 - `sigmas = [6 values]`, or `[position, velocity]`;
 - `covariance = [[6x6]]`;
-- `covariance_file = "file.txt"`, a 6x6 matrix as text (lines starting with `#`
-  or `%` are comments).
+- `covariance_file = "file.txt"`: a 6x6 matrix as text, either six rows of six
+  numbers or 36 numbers on one row. This is what a GMAT `ReportFile` writes for
+  `Sat.EarthMJ2000Eq.OrbitErrorCovariance`, for example after `RunEstimator`.
+  Lines starting with `#` or `%` are comments. A file with several matrices
+  (a report written at several times) gives the last one, or the one chosen
+  with `block` (0 for the first, -1 for the last).
 
 `frame` is `"inertial"` (default), `"RIC"` (radial, in-track, cross-track) or
 `"VNB"` (velocity, normal, bi-normal), built from the initial state.
@@ -125,6 +130,19 @@ Available parameters, with GMAT's names and conventions:
 A target must be differentiable at the nominal: do not target `ECC` on a
 circular orbit or `RAAN` on an equatorial one.
 
+## `[[consider]]`
+
+Uncertain model parameters that are neither estimated nor corrected: the true
+value is drawn once per Monte Carlo sample and kept for the whole mission,
+while corrections are designed with the nominal value.
+
+| Key | Meaning |
+| --- | --- |
+| `name` | with GMAT dynamics, a numeric Spacecraft field of the script (`Cd`, `Cr`, `DragArea`, `SRPArea`, `DryMass`...); with the reference models, `mu`, `j2`, `radius` or `mass_ratio` |
+| `sigma` | 1-sigma error, in the parameter's own unit |
+
+The nominal value comes from the script or the model.
+
 ## `[analysis]`
 
 | Key | Default | Meaning |
@@ -145,9 +163,15 @@ circular orbit or `RAAN` on an equatorial one.
 ```
 gmat-uq run mission.toml [--report FILE] [--methods lincov sigma_point monte_carlo]
                          [--samples N] [--workers N] [--seed N] [--guidance nonlinear|linear] [--quiet]
+                         [--values FILE]
 gmat-uq wilks [--probability 0.99] [--confidence 0.95]
 gmat-uq --version
 ```
+
+`--values` also writes the headline results as `key = value` lines (km and
+km/s): `delta_v_99`, `delta_v_mean`, `monte_carlo_delta_v_99`,
+`final_position_sigma`, `final_velocity_sigma`, `nonlinearity_index`,
+`linear_trusted`, `engines_agree`. The GMAT plugin reads this file.
 
 Exit codes: `0` success; `1` invalid input; `2` the analysis ran, but the
 sigma-point check flagged an arc or the two engines disagree, so the linear

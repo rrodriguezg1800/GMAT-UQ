@@ -8,3 +8,4 @@ gmat_uq_tmp_*.script
 
 # The repository root ignores Markdown files; the documentation of GMAT-UQ is Markdown.
 !*.md
+.coverage
