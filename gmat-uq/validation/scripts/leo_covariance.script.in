@@ -1,0 +1,56 @@
+%  Template of the script used to compare GMAT-UQ with GMAT's native covariance
+%  propagation (validation test 2).  The words between @ signs are filled in by
+%  validation/run_validation.py.
+%
+%  GMAT's covariance propagation needs fixed integration steps, hence
+%  ErrorControl = None and a small InitialStepSize.
+
+Create Spacecraft Sat;
+Sat.DateFormat = UTCGregorian;
+Sat.Epoch = '01 Jan 2026 12:00:00.000';
+Sat.CoordinateSystem = EarthMJ2000Eq;
+Sat.DisplayStateType = Cartesian;
+Sat.X = 7000;
+Sat.Y = 0;
+Sat.Z = 1300;
+Sat.VX = 0;
+Sat.VY = 7.35;
+Sat.VZ = 1.0;
+
+Create ForceModel FM;
+FM.CentralBody = Earth;
+FM.PrimaryBodies = {Earth};
+FM.GravityField.Earth.Degree = 4;
+FM.GravityField.Earth.Order = 4;
+FM.PointMasses = {Luna, Sun};
+FM.Drag = None;
+FM.SRP = Off;
+FM.ErrorControl = None;
+
+Create Propagator Prop;
+Prop.FM = FM;
+Prop.Type = RungeKutta89;
+Prop.InitialStepSize = 20;
+Prop.Accuracy = 1e-13;
+Prop.MinStep = 0;
+Prop.MaxStep = 2700;
+
+Create ReportFile StateReport;
+StateReport.Filename = '@STATE_FILE@';
+StateReport.WriteHeaders = False;
+StateReport.Precision = 16;
+StateReport.ColumnWidth = 26;
+StateReport.WriteReport = False;
+
+Create ReportFile CovReport;
+CovReport.Filename = '@COV_FILE@';
+CovReport.WriteHeaders = False;
+CovReport.Precision = 16;
+CovReport.ColumnWidth = 26;
+CovReport.WriteReport = False;
+
+BeginMissionSequence;
+Sat.OrbitErrorCovariance = diag([@DIAGONAL@]);
+Propagate Prop(Sat, 'Covariance') {Sat.ElapsedSecs = @DURATION@};
+Report StateReport Sat.EarthMJ2000Eq.X Sat.EarthMJ2000Eq.Y Sat.EarthMJ2000Eq.Z Sat.EarthMJ2000Eq.VX Sat.EarthMJ2000Eq.VY Sat.EarthMJ2000Eq.VZ;
+Report CovReport Sat.EarthMJ2000Eq.OrbitErrorCovariance;

@@ -1,0 +1,34 @@
+%  Cislunar force model used by the GMAT-UQ lunar-transfer validation case.
+%
+%  GMAT-UQ reads the Spacecraft, the ForceModel and the Propagator from this
+%  script.  The spacecraft state below is a placeholder: the validation case
+%  designs its own departure state and passes it to the propagator.
+
+Create Spacecraft Sat;
+Sat.DateFormat = UTCGregorian;
+Sat.Epoch = '01 Jan 2026 12:00:00.000';
+Sat.CoordinateSystem = EarthMJ2000Eq;
+Sat.DisplayStateType = Cartesian;
+Sat.X = 6563.14;
+Sat.Y = 0;
+Sat.Z = 0;
+Sat.VX = 0;
+Sat.VY = 7.79;
+Sat.VZ = 0;
+
+Create ForceModel FM;
+FM.CentralBody = Earth;
+FM.PointMasses = {Earth, Luna, Sun};
+FM.Drag = None;
+FM.SRP = Off;
+FM.ErrorControl = RSSStep;
+
+Create Propagator Prop;
+Prop.FM = FM;
+Prop.Type = PrinceDormand78;
+Prop.InitialStepSize = 60;
+Prop.Accuracy = 1e-12;
+Prop.MinStep = 0;
+Prop.MaxStep = 86400;
+
+BeginMissionSequence;

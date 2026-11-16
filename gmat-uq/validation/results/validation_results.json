@@ -1,0 +1,363 @@
+{
+  "environment": {
+    "gmat_uq": "1.0.0",
+    "python": "3.13.14",
+    "numpy": "2.5.1",
+    "scipy": "1.18.1",
+    "gmat": "R2026a (Build Date: Mar 26 2026  15:02:55)",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "cpu_count": 6,
+    "date_utc": "2026-11-15 19:51"
+  },
+  "options": {
+    "samples": 2000,
+    "workers": 6,
+    "seed": 2026,
+    "dv_samples": 20000
+  },
+  "tests": [
+    {
+      "id": 1,
+      "title": "Gates sampler against its analytic covariance",
+      "criterion": "sample covariance of 100,000 draws consistent with the formula at 99% confidence",
+      "passed": true,
+      "measurements": {
+        "draws": 100000,
+        "covariance_test_p_value": 0.4900167798076952,
+        "mean_test_p_value": 0.1832911897365137,
+        "largest_sigma_difference_percent": 0.47168439629433623
+      },
+      "elapsed_seconds": 0.030952399945817888
+    },
+    {
+      "id": 2,
+      "title": "Linear covariance with no burns against GMAT's native covariance propagation",
+      "criterion": "position and velocity sigmas equal to 8 significant digits",
+      "passed": true,
+      "measurements": {
+        "with_process_noise_largest_relative_sigma_difference": 3.0186964039558006e-13,
+        "process_noise_share_of_sigma": 0.02115160215487899,
+        "case": "low Earth orbit, 4x4 gravity plus Moon and Sun, 6 hours, RungeKutta89 with 20 s fixed steps",
+        "largest_relative_sigma_difference": 6.41864339456788e-12,
+        "matching_significant_digits": 11.192556752072923,
+        "largest_relative_element_difference": 2.2472365162720547e-12,
+        "final_state_difference_km": 4.222329152980819e-09,
+        "native_position_sigmas_km": [
+          34.30032309712687,
+          7.87343171412865,
+          5.568786106207704
+        ]
+      },
+      "elapsed_seconds": 2.24676140001975
+    },
+    {
+      "id": 3,
+      "title": "Linear covariance against Monte Carlo on a two-burn transfer between circular orbits",
+      "criterion": "1-sigma dispersions within 5%; linear delta-V 99 inside the Monte Carlo 95% interval",
+      "passed": true,
+      "measurements": {
+        "monte_carlo_samples": 4000,
+        "failed_samples": 0,
+        "unconverged_samples": 0,
+        "component_sigma_ratio_min": 0.9869725484980806,
+        "component_sigma_ratio_max": 0.9971988737280375,
+        "largest_component_sigma_difference_percent": 1.3027451501919418,
+        "directional_sigma_ratio_min": 0.965708089475811,
+        "directional_sigma_ratio_max": 1.0104881709626967,
+        "covariance_test_p_value": 0.6414891185706113,
+        "delta_v_99_linear_mps": 1777.6099636426636,
+        "delta_v_99_monte_carlo_mps": 1777.0100757392968,
+        "delta_v_99_monte_carlo_interval_mps": [
+          1775.9414758777768,
+          1778.769859641255
+        ],
+        "delta_v_99_linear_inside_interval": true,
+        "delta_v_99_relative_difference_percent": 0.033758272480096836,
+        "correction_delta_v_99_linear_mps": 26.506631917403613,
+        "correction_delta_v_99_monte_carlo_mps": 25.906744014036704,
+        "target_sigma_ratio_min": 0.9733483609528861,
+        "target_sigma_ratio_max": 0.9994456794950337,
+        "target_labels": [
+          "SMA",
+          "INC",
+          "RAAN"
+        ],
+        "target_sigmas_linear": [
+          13.714316299323729,
+          0.03896401611393169,
+          0.061658360489101956
+        ],
+        "target_sigmas_monte_carlo": [
+          13.557385867440056,
+          0.03830441084430095,
+          0.06059966022281181
+        ],
+        "case": {
+          "description": "7000 km to 12000 km circular, inclination 28.5 deg, reference two-body dynamics",
+          "transfer_time_s": 4607.51112940626,
+          "nominal_delta_v_mps": 1751.1033317252602
+        },
+        "sigma_point_max_index": 0.05041629145439461
+      },
+      "elapsed_seconds": 23.944347799988464
+    },
+    {
+      "id": 4,
+      "title": "Linear covariance against Monte Carlo on a lunar transfer with three corrections to the B-plane",
+      "criterion": "1-sigma dispersions within 10%; linear delta-V 99 inside the Monte Carlo 95% interval",
+      "passed": true,
+      "measurements": {
+        "monte_carlo_samples": 2000,
+        "failed_samples": 0,
+        "unconverged_samples": 0,
+        "component_sigma_ratio_min": 0.9917580473884968,
+        "component_sigma_ratio_max": 0.9950828480292724,
+        "largest_component_sigma_difference_percent": 0.8241952611503178,
+        "directional_sigma_ratio_min": 0.9613979510097421,
+        "directional_sigma_ratio_max": 1.0195631628496502,
+        "covariance_test_p_value": 0.258009419099576,
+        "delta_v_99_linear_mps": 3162.1983165014944,
+        "delta_v_99_monte_carlo_mps": 3162.1896032692243,
+        "delta_v_99_monte_carlo_interval_mps": [
+          3161.111952758672,
+          3163.9795862873466
+        ],
+        "delta_v_99_linear_inside_interval": true,
+        "delta_v_99_relative_difference_percent": 0.0002755442703660428,
+        "correction_delta_v_99_linear_mps": 21.750956660533518,
+        "correction_delta_v_99_monte_carlo_mps": 21.742243428263148,
+        "target_sigma_ratio_min": 0.9733331608156514,
+        "target_sigma_ratio_max": 1.0142666123620674,
+        "target_labels": [
+          "BdotT",
+          "BdotR"
+        ],
+        "target_sigmas_linear": [
+          0.6325671778448195,
+          0.6050646663524828
+        ],
+        "target_sigmas_monte_carlo": [
+          0.6357830293921494,
+          0.5942178618486023
+        ],
+        "case": {
+          "description": "185 km parking orbit to a lunar flyby; Earth, Moon and Sun point masses propagated by GMAT",
+          "gmat_script": "cislunar.script",
+          "epoch": "01 Jan 2026 12:00:00.000 UTC",
+          "flight_time_days": 3.8621700101859435,
+          "tli_delta_v_mps": 3140.447359840961,
+          "perilune_radius_km": 3348.718784862105,
+          "lunar_eccentricity": 1.5524859975193117,
+          "moon_distance_at_target_km": 36055.51275456441,
+          "v_infinity_kmps": 0.8993803880514185
+        },
+        "sigma_point_max_index": 0.031891257157740265,
+        "sigma_point_linear_ok": true,
+        "per_maneuver_correction_sigma_mps": {
+          "TLI": 0.0,
+          "TCM1": 8.17876650528974,
+          "TCM2": 0.2084805207857622,
+          "TCM3": 0.10288714891734252
+        },
+        "monte_carlo_wall_seconds": 107.20854849996977,
+        "monte_carlo_workers": 6
+      },
+      "elapsed_seconds": 188.132245899993
+    },
+    {
+      "id": 5,
+      "title": "Several revolutions of a near-rectilinear halo orbit",
+      "criterion": "the arc is flagged by the sigma-point check no later than the node where the two engines first differ by more than 10%",
+      "passed": true,
+      "measurements": {
+        "case": {
+          "description": "Earth-Moon L2 southern near-rectilinear halo orbit in the circular restricted three-body problem",
+          "period_days": 6.56223217570298,
+          "apolune_radius_km": 71221.40678947324,
+          "perilune_radius_km": 3249.0014744355794,
+          "periodicity_error": 3.2483980783037936e-12,
+          "initial_position_sigma_km": 10.0,
+          "initial_velocity_sigma_mps": 0.1,
+          "revolutions": 2.0,
+          "length_unit_km": 384400.0
+        },
+        "monte_carlo_samples": 2000,
+        "first_flagged_node": 4,
+        "first_node_where_engines_differ_by_more_than_10_percent": 4,
+        "first_flagged_time_days": 3.28111608785149,
+        "first_difference_time_days": 3.28111608785149,
+        "nodes": [
+          {
+            "time_days": 0.8202790219628725,
+            "sigma_point_index": 2.929936592684718e-06,
+            "flagged": false,
+            "monte_carlo_sigma_ratio_min": 0.9521603105634823,
+            "monte_carlo_sigma_ratio_max": 1.0280077761630964,
+            "engines_differ_percent": 4.783968943651773
+          },
+          {
+            "time_days": 1.640558043925745,
+            "sigma_point_index": 7.509354631795348e-05,
+            "flagged": false,
+            "monte_carlo_sigma_ratio_min": 0.9521603988553416,
+            "monte_carlo_sigma_ratio_max": 1.0280013862541757,
+            "engines_differ_percent": 4.783960114465835
+          },
+          {
+            "time_days": 2.4608370658886174,
+            "sigma_point_index": 0.0023193641476574015,
+            "flagged": false,
+            "monte_carlo_sigma_ratio_min": 0.952150792267663,
+            "monte_carlo_sigma_ratio_max": 1.027899194012589,
+            "engines_differ_percent": 4.7849207732337025
+          },
+          {
+            "time_days": 3.28111608785149,
+            "sigma_point_index": 449.44878396248356,
+            "flagged": true,
+            "monte_carlo_sigma_ratio_min": 0.9093496620916691,
+            "monte_carlo_sigma_ratio_max": 3.6412029996108575,
+            "engines_differ_percent": 264.1202999610857
+          },
+          {
+            "time_days": 4.101395109814362,
+            "sigma_point_index": 756.7623061219575,
+            "flagged": true,
+            "monte_carlo_sigma_ratio_min": 0.9523939179113742,
+            "monte_carlo_sigma_ratio_max": 1.0280814290002769,
+            "engines_differ_percent": 4.760608208862582
+          },
+          {
+            "time_days": 4.921674131777235,
+            "sigma_point_index": 0.01867983419106602,
+            "flagged": false,
+            "monte_carlo_sigma_ratio_min": 0.952281328217267,
+            "monte_carlo_sigma_ratio_max": 1.0278988215927634,
+            "engines_differ_percent": 4.771867178273304
+          },
+          {
+            "time_days": 5.7419531537401065,
+            "sigma_point_index": 0.005002156634485769,
+            "flagged": false,
+            "monte_carlo_sigma_ratio_min": 0.9522750179446687,
+            "monte_carlo_sigma_ratio_max": 1.0278653255926604,
+            "engines_differ_percent": 4.772498205533127
+          },
+          {
+            "time_days": 6.56223217570298,
+            "sigma_point_index": 0.002784259443574329,
+            "flagged": false,
+            "monte_carlo_sigma_ratio_min": 0.9522951385750956,
+            "monte_carlo_sigma_ratio_max": 1.0278491319242233,
+            "engines_differ_percent": 4.770486142490437
+          },
+          {
+            "time_days": 7.382511197665851,
+            "sigma_point_index": 0.0036265601042833246,
+            "flagged": false,
+            "monte_carlo_sigma_ratio_min": 0.952341814186633,
+            "monte_carlo_sigma_ratio_max": 1.0278678437408255,
+            "engines_differ_percent": 4.765818581336701
+          },
+          {
+            "time_days": 8.202790219628724,
+            "sigma_point_index": 0.0043433871635929515,
+            "flagged": false,
+            "monte_carlo_sigma_ratio_min": 0.9523687113747726,
+            "monte_carlo_sigma_ratio_max": 1.0281014864743987,
+            "engines_differ_percent": 4.763128862522736
+          },
+          {
+            "time_days": 9.023069241591596,
+            "sigma_point_index": 0.0836638069111677,
+            "flagged": false,
+            "monte_carlo_sigma_ratio_min": 0.9522570254748276,
+            "monte_carlo_sigma_ratio_max": 1.0369053931500056,
+            "engines_differ_percent": 4.77429745251724
+          },
+          {
+            "time_days": 9.84334826355447,
+            "sigma_point_index": 41.227821219138924,
+            "flagged": true,
+            "monte_carlo_sigma_ratio_min": 0.6177571344155911,
+            "monte_carlo_sigma_ratio_max": 19.858773889860927,
+            "engines_differ_percent": 1885.8773889860927
+          },
+          {
+            "time_days": 10.663627285517341,
+            "sigma_point_index": 12604.363685160135,
+            "flagged": true,
+            "monte_carlo_sigma_ratio_min": 0.956997334030297,
+            "monte_carlo_sigma_ratio_max": 1.058568614589578,
+            "engines_differ_percent": 5.856861458957807
+          },
+          {
+            "time_days": 11.483906307480213,
+            "sigma_point_index": 0.08391424298511757,
+            "flagged": false,
+            "monte_carlo_sigma_ratio_min": 0.9558754741725884,
+            "monte_carlo_sigma_ratio_max": 1.0289757318918626,
+            "engines_differ_percent": 4.412452582741155
+          },
+          {
+            "time_days": 12.304185329443087,
+            "sigma_point_index": 0.039480604640989035,
+            "flagged": false,
+            "monte_carlo_sigma_ratio_min": 0.9548490399917111,
+            "monte_carlo_sigma_ratio_max": 1.02726313160716,
+            "engines_differ_percent": 4.515096000828889
+          },
+          {
+            "time_days": 13.12446435140596,
+            "sigma_point_index": 0.02026540813754348,
+            "flagged": false,
+            "monte_carlo_sigma_ratio_min": 0.9545178491428594,
+            "monte_carlo_sigma_ratio_max": 1.027218401053511,
+            "engines_differ_percent": 4.548215085714058
+          }
+        ]
+      },
+      "elapsed_seconds": 20.733732900000177
+    },
+    {
+      "id": 6,
+      "title": "One seed on 1, 4 and 16 worker processes",
+      "criterion": "bit-identical results",
+      "passed": true,
+      "measurements": {
+        "reference_dynamics_samples": 64,
+        "reference_dynamics_identical_on_1_4_16_workers": true,
+        "gmat_dynamics_samples": 32,
+        "gmat_dynamics_identical_on_1_4_16_workers": true
+      },
+      "elapsed_seconds": 27.4774449999677
+    },
+    {
+      "id": 7,
+      "title": "GMAT is left untouched by an analysis",
+      "criterion": "GMAT's files and a script's own outputs are byte-identical before and after GMAT-UQ runs",
+      "passed": true,
+      "measurements": {
+        "script_outputs_untouched_by_the_analysis": true,
+        "gmat_rerun_gives_identical_outputs": true,
+        "gmat_bin_and_plugins_folders_unchanged": true,
+        "temporary_files_left_behind": [],
+        "note": "GMAT-UQ drives GMAT through its API and is not loaded into GMAT as a plugin, so this test replaces the design's 'sample scripts with the plugin loaded but unused'."
+      },
+      "elapsed_seconds": 3.5539512999821454
+    }
+  ],
+  "timing": {
+    "nominal_propagation_with_stm_seconds": 0.0867127999663353,
+    "linear_covariance_seconds": 0.057968700071796775,
+    "linear_covariance_total_seconds": 0.14468150003813207,
+    "linear_total_over_nominal": 1.6685137614550805,
+    "sigma_point_check_seconds": 0.4583007999463007,
+    "delta_v_samples": 20000,
+    "monte_carlo_seconds_per_sample_one_core": 0.24224317500018513,
+    "serial_samples_timed": 200,
+    "monte_carlo_2000_samples_one_core_seconds_extrapolated": 484.4863500003703,
+    "speed_up_over_2000_sample_monte_carlo": 3348.6406338936195,
+    "speed_up_including_sigma_point_check": 803.4835351101987
+  }
+}
