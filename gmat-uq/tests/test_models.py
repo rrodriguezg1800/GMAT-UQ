@@ -228,3 +228,37 @@ def test_process_noise_matches_the_snc_formula():
         ProcessNoise((1e-6, -1e-6, 0.0))
     with pytest.raises(ValueError):
         ProcessNoise((1e-6, 1e-6, 1e-6), max_step=0.0)
+
+
+def test_covariance_files_in_the_layouts_gmat_writes(tmp_path):
+    first = np.diag([1.0, 2.0, 3.0, 1e-6, 2e-6, 3e-6])
+    second = 4.0 * first
+    one_row = tmp_path / "one_row.txt"
+    one_row.write_text(" ".join(repr(float(v)) for v in first.ravel()) + "\n", encoding="utf-8")
+    assert np.array_equal(StateDispersion.from_file(one_row).covariance, first)
+    blocks = tmp_path / "blocks.txt"
+    lines = [" ".join(repr(float(v)) for v in row) for row in np.vstack([first, second])]
+    blocks.write_text("\n".join(lines), encoding="utf-8")
+    assert np.array_equal(StateDispersion.from_file(blocks).covariance, second)  # the last one by default
+    assert np.array_equal(StateDispersion.from_file(blocks, block=0).covariance, first)
+    with pytest.raises(ValueError, match="block 5 does not exist"):
+        StateDispersion.from_file(blocks, block=5)
+    short = tmp_path / "short.txt"
+    short.write_text("1 2 3\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="holds 3 numbers"):
+        StateDispersion.from_file(short)
+    text = tmp_path / "text.txt"
+    text.write_text("01 Jan 2026 1 2 3\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="line 1: not a number"):
+        StateDispersion.from_file(text)
+
+
+def test_reads_a_covariance_written_by_gmat_batch_estimator():
+    """``Report Rep EstSat.EarthMJ2000Eq.OrbitErrorCovariance`` after ``RunEstimator`` (GMAT R2026a sample)."""
+    from pathlib import Path
+
+    path = Path(__file__).parent / "data" / "gmat_batch_estimator_covariance.txt"
+    knowledge = NavigationErrorModel.from_file(path)
+    sigmas = np.sqrt(np.diag(knowledge.covariance))
+    assert np.allclose(sigmas[:3], [1.7926e-4, 2.9299e-4, 5.0358e-4], rtol=1e-4)  # km
+    assert np.all(np.linalg.eigvalsh(knowledge.covariance) > 0.0)

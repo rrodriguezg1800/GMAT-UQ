@@ -11,7 +11,8 @@ results can be compared sample by sample.
 The streams come from Philox, a counter-based generator: the block of numbers
 that belongs to sample ``i`` is found by advancing the counter to ``i`` times
 the block size, without generating anything before it.  Each source of
-uncertainty (initial state, navigation, execution, process noise) has its own
+uncertainty (initial state, navigation, execution, process noise, consider
+parameters) has its own
 key, so switching one source on or off leaves the draws of the others
 unchanged.  Uniform numbers are mapped to normal ones with the inverse normal
 distribution function, which uses exactly one uniform per normal and so keeps
@@ -27,7 +28,7 @@ from scipy.special import ndtri
 
 __all__ = ["SampleNormals", "draw_normals", "draw_normals_batch"]
 
-_INITIAL, _NAVIGATION, _EXECUTION, _PROCESS = 0, 1, 2, 3
+_INITIAL, _NAVIGATION, _EXECUTION, _PROCESS, _CONSIDER = 0, 1, 2, 3, 4
 _WORDS_PER_STEP = 4  # one step of the Philox counter yields four 64-bit numbers
 _SMALLEST_UNIFORM = 2.0**-53  # keeps the inverse distribution function finite
 
@@ -43,6 +44,7 @@ class SampleNormals:
     navigation: np.ndarray  # (..., n_maneuvers, 6) knowledge error at each maneuver
     execution: np.ndarray  # (..., n_maneuvers, 3) execution error of each maneuver
     process: np.ndarray  # (..., n_intervals, 6) process noise of each interval (may be empty)
+    consider: np.ndarray  # (..., n_consider) error of each consider parameter (may be empty)
 
 
 def _check_seed(seed) -> int:
@@ -74,7 +76,9 @@ def _runs(indices: np.ndarray):
         yield int(start), int(indices[start]), int(end - start)
 
 
-def draw_normals_batch(seed: int, indices, n_maneuvers: int, n_process_intervals: int = 0) -> SampleNormals:
+def draw_normals_batch(
+    seed: int, indices, n_maneuvers: int, n_process_intervals: int = 0, n_consider: int = 0
+) -> SampleNormals:
     """Draw the standard normals of several samples.
 
     Row ``j`` of every array belongs to sample ``indices[j]`` and has the same
@@ -85,7 +89,13 @@ def draw_normals_batch(seed: int, indices, n_maneuvers: int, n_process_intervals
     if indices.size and indices.min() < 0:
         raise ValueError("sample index must be non-negative")
     count = indices.size
-    widths = {_INITIAL: 6, _NAVIGATION: 6 * n_maneuvers, _EXECUTION: 3 * n_maneuvers, _PROCESS: 6 * n_process_intervals}
+    widths = {
+        _INITIAL: 6,
+        _NAVIGATION: 6 * n_maneuvers,
+        _EXECUTION: 3 * n_maneuvers,
+        _PROCESS: 6 * n_process_intervals,
+        _CONSIDER: n_consider,
+    }
     blocks = {source: np.empty((count, width)) for source, width in widths.items()}
     for position, first_index, length in _runs(indices):
         for source, width in widths.items():
@@ -95,12 +105,15 @@ def draw_normals_batch(seed: int, indices, n_maneuvers: int, n_process_intervals
         navigation=blocks[_NAVIGATION].reshape(count, n_maneuvers, 6),
         execution=blocks[_EXECUTION].reshape(count, n_maneuvers, 3),
         process=blocks[_PROCESS].reshape(count, n_process_intervals, 6),
+        consider=blocks[_CONSIDER],
     )
 
 
-def draw_normals(seed: int, index: int, n_maneuvers: int, n_process_intervals: int = 0) -> SampleNormals:
+def draw_normals(
+    seed: int, index: int, n_maneuvers: int, n_process_intervals: int = 0, n_consider: int = 0
+) -> SampleNormals:
     """Draw the standard normals of sample ``index``."""
     if index < 0:
         raise ValueError("sample index must be non-negative")
-    batch = draw_normals_batch(seed, [index], n_maneuvers, n_process_intervals)
-    return SampleNormals(batch.initial[0], batch.navigation[0], batch.execution[0], batch.process[0])
+    batch = draw_normals_batch(seed, [index], n_maneuvers, n_process_intervals, n_consider)
+    return SampleNormals(batch.initial[0], batch.navigation[0], batch.execution[0], batch.process[0], batch.consider[0])

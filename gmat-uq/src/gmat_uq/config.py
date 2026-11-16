@@ -20,6 +20,7 @@ from .dynamics import CR3BP, Dynamics, GmatDynamics, TwoBody, TwoBodyJ2
 from .dynamics.ode import EARTH_J2, EARTH_MU, EARTH_RADIUS
 from .mission import Maneuver, Mission
 from .models import (
+    ConsiderParameter,
     ManeuverErrorModel,
     NavigationErrorModel,
     ProcessNoise,
@@ -70,7 +71,9 @@ def _require(section: dict, key: str, where: str):
 
 def _covariance(section: dict, where: str, base: Path) -> tuple[np.ndarray, str]:
     """Read a covariance given as sigmas, a matrix or a file; return it with its frame name."""
-    _check_keys(section, {"sigmas", "covariance", "covariance_file", "frame"}, where)
+    _check_keys(section, {"sigmas", "covariance", "covariance_file", "block", "frame"}, where)
+    if "block" in section and "covariance_file" not in section:
+        raise ConfigError(f"{where}: 'block' only applies to a covariance_file")
     given = [key for key in ("sigmas", "covariance", "covariance_file") if key in section]
     if len(given) != 1:
         raise ConfigError(f"{where} needs exactly one of 'sigmas', 'covariance' or 'covariance_file'")
@@ -80,7 +83,7 @@ def _covariance(section: dict, where: str, base: Path) -> tuple[np.ndarray, str]
         elif "covariance" in section:
             covariance = StateDispersion(np.array(section["covariance"], dtype=float)).covariance
         else:
-            covariance = StateDispersion.from_file(base / section["covariance_file"]).covariance
+            covariance = StateDispersion.from_file(base / section["covariance_file"], int(section.get("block", -1))).covariance
     except (ValueError, OSError) as error:
         raise ConfigError(f"{where}: {error}") from error
     return np.array(covariance), str(section.get("frame", "inertial"))
@@ -169,13 +172,13 @@ def _states_at(times, initial_state, initial_time, burns, dynamics: Dynamics) ->
 def build_from_dict(data: dict, base: Path | str = ".") -> AnalysisConfig:
     """Build an :class:`AnalysisConfig` from a parsed configuration dictionary."""
     base = Path(base)
-    _check_keys(data, {"dynamics", "mission", "error_models", "navigation", "maneuver", "analysis"}, "the configuration")
+    _check_keys(data, {"dynamics", "mission", "error_models", "navigation", "maneuver", "consider", "analysis"}, "the configuration")
     dynamics = _build_dynamics(_require(data, "dynamics", "the configuration"), base)
 
     mission_section = dict(_require(data, "mission", "the configuration"))
     _check_keys(
         mission_section,
-        {"initial_state", "initial_time", "final_time", "report_times", "final_target", "initial_dispersion", "process_noise"},
+        {"initial_state", "initial_time", "final_time", "report_times", "final_target", "initial_dispersion", "process_noise", "epoch_a1mjd"},
         "[mission]",
     )
     if "initial_state" in mission_section:
@@ -186,8 +189,19 @@ def build_from_dict(data: dict, base: Path | str = ".") -> AnalysisConfig:
         raise ConfigError("missing 'initial_state' in [mission]")
     if initial_state.shape != (6,):
         raise ConfigError("[mission] initial_state must hold six values")
-    initial_time = float(mission_section.get("initial_time", 0.0))
-    final_time = float(_require(mission_section, "final_time", "[mission]"))
+    # Times may be given from an epoch other than the script's (this is how the GMAT-UQ plugin
+    # passes the moment RunUncertaintyAnalysis executes).  They are shifted to the script's epoch.
+    offset = 0.0
+    if "epoch_a1mjd" in mission_section:
+        if not isinstance(dynamics, GmatDynamics):
+            raise ConfigError("[mission] epoch_a1mjd needs dynamics of type 'gmat'")
+        offset = (float(mission_section["epoch_a1mjd"]) - dynamics.epoch_a1mjd) * 86400.0
+
+    def shifted(value) -> float:
+        return float(value) + offset
+
+    initial_time = shifted(mission_section.get("initial_time", 0.0))
+    final_time = shifted(_require(mission_section, "final_time", "[mission]"))
 
     error_models = {}
     for name, section in data.get("error_models", {}).items():
@@ -206,7 +220,7 @@ def build_from_dict(data: dict, base: Path | str = ".") -> AnalysisConfig:
     burns = []
     for section in maneuver_sections:
         _check_keys(section, {"name", "time", "dv", "error_model", "navigation", "target", "target_time"}, "[[maneuver]]")
-        burns.append((float(_require(section, "time", "[[maneuver]]")), np.array(section.get("dv", [0.0, 0.0, 0.0]), dtype=float)))
+        burns.append((shifted(_require(section, "time", "[[maneuver]]")), np.array(section.get("dv", [0.0, 0.0, 0.0]), dtype=float)))
 
     # Local frames (RIC, VNB) are oriented with the nominal state at the time they apply.
     local_times = set()
@@ -216,14 +230,14 @@ def build_from_dict(data: dict, base: Path | str = ".") -> AnalysisConfig:
             if name not in navigation_raw:
                 raise ConfigError(f"maneuver '{section.get('name')}' refers to unknown navigation model '{name}'")
             if navigation_raw[name][1].lower() not in ("inertial", "mj2000eq"):
-                local_times.add(float(section["time"]))
+                local_times.add(shifted(section["time"]))
     local_states = _states_at(local_times, initial_state, initial_time, burns, dynamics) if local_times else {}
 
     maneuvers = []
     for section in maneuver_sections:
         name = str(_require(section, "name", "[[maneuver]]"))
         where = f"maneuver '{name}'"
-        time = float(section["time"])
+        time = shifted(section["time"])
         error_model = None
         if "error_model" in section:
             if section["error_model"] not in error_models:
@@ -242,7 +256,7 @@ def build_from_dict(data: dict, base: Path | str = ".") -> AnalysisConfig:
         if "target" in section:
             if "target_time" not in section:
                 raise ConfigError(f"{where}: a target needs a target_time")
-            target = _build_target(section["target"], dynamics, float(section["target_time"]), where)
+            target = _build_target(section["target"], dynamics, shifted(section["target_time"]), where)
         try:
             maneuvers.append(
                 Maneuver(
@@ -251,7 +265,7 @@ def build_from_dict(data: dict, base: Path | str = ".") -> AnalysisConfig:
                     dv=tuple(np.array(section.get("dv", [0.0, 0.0, 0.0]), dtype=float)),
                     error_model=error_model,
                     target=target,
-                    target_time=section.get("target_time"),
+                    target_time=None if "target_time" not in section else shifted(section["target_time"]),
                     navigation=navigation,
                 )
             )
@@ -277,6 +291,20 @@ def build_from_dict(data: dict, base: Path | str = ".") -> AnalysisConfig:
         except (TypeError, ValueError) as error:
             raise ConfigError(f"[mission.process_noise]: {error}") from error
 
+    consider_sections = data.get("consider", [])
+    if not isinstance(consider_sections, list):
+        raise ConfigError("consider parameters must be given as an array of tables: [[consider]]")
+    consider = []
+    for section in consider_sections:
+        _check_keys(section, {"name", "sigma"}, "[[consider]]")
+        name = str(_require(section, "name", "[[consider]]"))
+        try:
+            item = ConsiderParameter(name, float(_require(section, "sigma", "[[consider]]")))
+            dynamics.parameter_value(item.name)
+        except (TypeError, ValueError) as error:
+            raise ConfigError(f"consider parameter '{name}': {error}") from error
+        consider.append(item)
+
     final_target = None
     if "final_target" in mission_section:
         final_target = _build_target(mission_section["final_target"], dynamics, final_time, "[mission] final_target")
@@ -288,9 +316,10 @@ def build_from_dict(data: dict, base: Path | str = ".") -> AnalysisConfig:
             maneuvers=tuple(maneuvers),
             initial_dispersion=initial_dispersion,
             process_noise=process_noise,
-            report_times=tuple(mission_section.get("report_times", ())),
+            report_times=tuple(shifted(t) for t in mission_section.get("report_times", ())),
             final_target=final_target,
             initial_time=initial_time,
+            consider=tuple(consider),
         )
     except (TypeError, ValueError) as error:
         raise ConfigError(f"[mission]: {error}") from error

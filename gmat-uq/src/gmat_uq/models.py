@@ -16,6 +16,7 @@ import numpy as np
 from .linalg import check_covariance, covariance_factor, perpendicular_basis, symmetrize
 
 __all__ = [
+    "ConsiderParameter",
     "ManeuverErrorModel",
     "StateDispersion",
     "NavigationErrorModel",
@@ -248,11 +249,35 @@ class _GaussianState:
         return cls(rotate_covariance_to_inertial(covariance, state, frame))
 
     @classmethod
-    def from_file(cls, path):
-        """Read a 6x6 covariance from a whitespace- or comma-separated text file."""
+    def from_file(cls, path, block: int = -1):
+        """Read a 6x6 covariance from a text file.
+
+        The numbers may be separated by spaces or commas, and lines starting
+        with ``#`` or ``%`` are comments.  Two layouts are accepted, including
+        the ones a GMAT ``ReportFile`` writes for ``Sat.EarthMJ2000Eq.OrbitErrorCovariance``:
+        six rows of six numbers, or 36 numbers on one row (row by row).  A
+        file holding several matrices, for example a report written at
+        several epochs, yields the one selected by ``block`` (the last one by
+        default).
+        """
         text = Path(path).read_text(encoding="utf-8")
-        rows = [line.replace(",", " ").split() for line in text.splitlines() if line.strip() and not line.lstrip().startswith(("#", "%"))]
-        return cls(np.array(rows, dtype=float))
+        values = []
+        for number, line in enumerate(text.splitlines(), start=1):
+            stripped = line.strip()
+            if not stripped or stripped.startswith(("#", "%")):
+                continue
+            try:
+                values.extend(float(item) for item in stripped.replace(",", " ").split())
+            except ValueError as error:
+                raise ValueError(f"{Path(path).name}, line {number}: not a number ({error})") from error
+        if not values or len(values) % 36:
+            raise ValueError(f"{Path(path).name} holds {len(values)} numbers; expected one or more 6x6 matrices (36 numbers each)")
+        matrices = np.array(values).reshape(-1, 6, 6)
+        try:
+            matrix = matrices[block]
+        except IndexError as error:
+            raise ValueError(f"{Path(path).name} holds {len(matrices)} matrices; block {block} does not exist") from error
+        return cls(matrix)
 
     @property
     def factor(self) -> np.ndarray:
@@ -288,6 +313,34 @@ class NavigationErrorModel(_GaussianState):
     """
 
     _label = "navigation knowledge covariance"
+
+
+@dataclass(frozen=True)
+class ConsiderParameter:
+    """An uncertain model parameter that is neither estimated nor corrected.
+
+    The true value differs from the nominal one by a zero-mean Gaussian error
+    with standard deviation ``sigma``, constant over the whole mission.  The
+    flight software designs every correction with the nominal value, so the
+    error shows up as a delivery error at the target.
+
+    ``name`` is a parameter of the dynamics: a numeric Spacecraft field of the
+    GMAT script (``Cd``, ``Cr``, ``DragArea``, ``SRPArea``, ``DryMass``...) for
+    GMAT dynamics, or a physical field of a reference model (``mu``, ``j2``).
+    The nominal value is taken from the dynamics.
+    """
+
+    name: str
+    sigma: float
+
+    def __post_init__(self) -> None:
+        if not str(self.name).strip():
+            raise ValueError("a consider parameter needs a name")
+        sigma = float(self.sigma)
+        if not np.isfinite(sigma) or sigma <= 0.0:
+            raise ValueError(f"consider parameter '{self.name}': sigma must be a positive, finite number")
+        object.__setattr__(self, "name", str(self.name).strip())
+        object.__setattr__(self, "sigma", sigma)
 
 
 @dataclass(frozen=True)

@@ -6,6 +6,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
+
+import numpy as np
 
 from . import __version__
 from .analysis import run_analysis
@@ -34,6 +37,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--seed", type=int, help="master random seed (overrides the configuration)")
     run.add_argument("--guidance", choices=("nonlinear", "linear"), help="Monte Carlo guidance mode")
     run.add_argument("--quiet", action="store_true", help="do not print the summary")
+    run.add_argument("--values", help="also write the main results as 'key = value' lines (read by the GMAT plugin)")
 
     wilks = commands.add_parser("wilks", help="smallest sample that bounds a quantile with a given confidence")
     wilks.add_argument("--probability", type=float, default=0.99)
@@ -66,6 +70,8 @@ def _run(arguments) -> int:
                 print(file=sys.stderr)
 
     result = run_analysis(config, progress)
+    if arguments.values:
+        write_values(result, arguments.values)
     if config.report:
         path = write_report(result.report, config.report)
         if not arguments.quiet:
@@ -77,6 +83,35 @@ def _run(arguments) -> int:
         result.consistency is not None and "lincov" in config.methods and not result.consistency.agrees
     )
     return 2 if untrusted else 0
+
+
+def write_values(result, path) -> None:
+    """Write the headline results as plain ``key = value`` lines (km and km/s).
+
+    Keys whose engine did not run are left out.  ``linear_trusted`` and
+    ``engines_agree`` are 1 or 0.
+    """
+    values = {}
+    if result.lincov is not None:
+        statistics = result.lincov.dv_statistics()
+        if statistics is not None:
+            values["delta_v_99"] = statistics["total"]["quantile"]["value"]
+            values["delta_v_mean"] = statistics["total"]["mean"]
+        values["final_position_sigma"] = result.lincov.position_sigma_rss()
+        values["final_velocity_sigma"] = result.lincov.velocity_sigma_rss()
+    if result.sigma_point is not None:
+        values["nonlinearity_index"] = result.sigma_point.max_index
+        values["linear_trusted"] = 1.0 if result.sigma_point.linear_ok else 0.0
+    if result.monte_carlo is not None and result.monte_carlo.nominal.plans and result.monte_carlo.valid.sum() > 0:
+        values["monte_carlo_delta_v_99"] = result.monte_carlo.dv_statistics()["total"]["quantile"]["value"]
+        if result.lincov is None:
+            covariance = result.monte_carlo.final_covariance
+            values["final_position_sigma"] = float(np.sqrt(np.trace(covariance[:3, :3])))
+            values["final_velocity_sigma"] = float(np.sqrt(np.trace(covariance[3:, 3:])))
+    if result.consistency is not None:
+        values["engines_agree"] = 1.0 if result.consistency.agrees else 0.0
+    lines = [f"{key} = {float(value)!r}" for key, value in values.items() if np.isfinite(value)]
+    Path(path).write_text("".join(line + "\n" for line in lines), encoding="utf-8")
 
 
 def main(argv=None) -> int:

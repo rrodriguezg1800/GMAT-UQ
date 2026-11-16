@@ -10,6 +10,10 @@ an execution error on the true state.
 Samples are independent, so they are distributed over worker processes.  The
 random stream of a sample depends only on the master seed and the sample
 index, which makes the results identical for any number of workers.
+
+Consider parameters (for example ``Cd``) take a true value per sample, drawn
+once and held for the whole mission.  The truth is propagated with that value;
+corrections are designed with the nominal value, as flight software would.
 """
 
 from __future__ import annotations
@@ -64,6 +68,7 @@ class MonteCarloResult:
     target_deviation: np.ndarray | None  # (N, m) final target minus its nominal value
     workers: int
     elapsed_seconds: float
+    consider_deviation: np.ndarray | None = None  # (N, n_consider) true minus nominal parameter values
 
     @property
     def n_samples(self) -> int:
@@ -129,8 +134,11 @@ def simulate_sample(context: _Context, index: int) -> dict:
     plans = nominal.plans
     n = nominal.n_nodes
     intervals = n - 1 if context.noise_factors else 0
-    normals = draw_normals(context.seed, index, len(plans), intervals)
+    normals = draw_normals(context.seed, index, len(plans), intervals, nominal.n_consider)
     plan_index = {plan.node: k for k, plan in enumerate(plans)}
+    parameter_error = normals.consider * mission.consider_sigmas
+    # The truth flies with the true parameters; corrections are designed with the nominal ones.
+    truth = {"parameters": nominal.parameters_for(parameter_error)} if nominal.n_consider else {}
 
     deviations = np.full((n, 6), np.nan)
     commanded = np.full((len(plans), 3), np.nan)
@@ -175,7 +183,7 @@ def simulate_sample(context: _Context, index: int) -> dict:
                 state = state.copy()
                 state[3:] += command + execution[k]
             if node < n - 1:
-                state = np.array(dynamics.propagate(state, nominal.times[node], nominal.times[node + 1]), dtype=float)
+                state = np.array(dynamics.propagate(state, nominal.times[node], nominal.times[node + 1], **truth), dtype=float)
                 if context.noise_factors:
                     state = state + context.noise_factors[node] @ normals.process[node]
                 if not np.all(np.isfinite(state)):
@@ -199,6 +207,7 @@ def simulate_sample(context: _Context, index: int) -> dict:
         "iterations": iterations,
         "failed": failed,
         "target": target_deviation,
+        "consider": parameter_error,
     }
 
 
@@ -311,4 +320,7 @@ def run_monte_carlo(
         target_deviation=np.array([r["target"] for r in records]) if has_target else None,
         workers=workers,
         elapsed_seconds=float(elapsed),
+        consider_deviation=np.array([r["consider"] for r in records]).reshape(len(records), nominal.n_consider)
+        if nominal.n_consider
+        else None,
     )

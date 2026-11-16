@@ -338,3 +338,26 @@ def test_values_of_the_wrong_kind_are_configuration_errors(tmp_path, capsys):
             load_config(path)
     assert main(["run", str(_write(tmp_path, CONFIG.replace("time = 600.0", 'time = "soon"')))]) == 1
     assert "error" in capsys.readouterr().err
+
+
+def test_values_file_for_the_gmat_plugin(tmp_path, capsys):
+    path = _write(tmp_path, CONFIG)
+    values = tmp_path / "values.txt"
+    assert main(["run", str(path), "--quiet", "--values", str(values)]) == 0
+    parsed = dict(line.split(" = ") for line in values.read_text(encoding="utf-8").splitlines())
+    assert set(parsed) == {
+        "delta_v_99", "delta_v_mean", "final_position_sigma", "final_velocity_sigma",
+        "nonlinearity_index", "linear_trusted", "monte_carlo_delta_v_99", "engines_agree",
+    }
+    report = json.loads((tmp_path / "out" / "report.json").read_text(encoding="utf-8"))
+    assert np.isclose(float(parsed["delta_v_99"]), report["lincov"]["delta_v"]["total"]["quantile"]["value"])
+    assert parsed["linear_trusted"] == "1.0" and parsed["engines_agree"] == "1.0"
+    # Only the engines that ran are reported.
+    assert main(["run", str(path), "--quiet", "--methods", "monte_carlo", "--values", str(values)]) == 0
+    parsed = dict(line.split(" = ") for line in values.read_text(encoding="utf-8").splitlines())
+    assert set(parsed) == {"monte_carlo_delta_v_99", "final_position_sigma", "final_velocity_sigma"}
+
+
+def test_epoch_shift_needs_gmat_dynamics(tmp_path):
+    with pytest.raises(ConfigError, match="epoch_a1mjd needs dynamics of type 'gmat'"):
+        load_config(_write(tmp_path, CONFIG.replace("final_time = 5200.0", "final_time = 5200.0\nepoch_a1mjd = 31042.0")))

@@ -22,6 +22,11 @@ correction maneuvers:
 
 The knowledge error is taken as independent of the true dispersion.
 
+Consider parameters (uncertain model parameters such as ``Cd``) augment the
+state: ``Phi`` becomes ``[[Phi, Psi], [0, I]]``, where ``Psi`` is the
+sensitivity of the state to the parameters over the interval.  The guidance
+gain acts on the orbit state only, because the parameters are not estimated.
+
 Delta-V statistics are not Gaussian (they are magnitudes), so they are obtained
 by sampling the same linear system, which costs matrix products only.
 """
@@ -88,6 +93,8 @@ class LinCovResult:
     maneuvers: tuple[ManeuverCovariance, ...]
     samples: LinearSamples | None
     seed: int
+    # (n_nodes, 6 + m, 6 + m): covariance of the state augmented with the consider parameters
+    augmented_after: np.ndarray | None = None
 
     @property
     def times(self) -> np.ndarray:
@@ -170,22 +177,32 @@ def run_lincov(
     if nominal is None:
         nominal = compute_nominal(mission, dynamics)
     n = nominal.n_nodes
-    input_matrix = velocity_input_matrix()
-    identity = np.eye(6)
+    m = nominal.n_consider
+    size = 6 + m
+    input_matrix = np.zeros((size, 3))
+    input_matrix[3:6, :] = np.eye(3)
+    identity = np.eye(size)
 
     before = np.empty((n, 6, 6))
     after = np.empty((n, 6, 6))
+    augmented = np.empty((n, size, size))
     maneuvers = []
-    covariance = _initial_covariance(mission)
+    covariance = np.zeros((size, size))
+    covariance[:6, :6] = _initial_covariance(mission)
+    if m:
+        covariance[6:, 6:] = np.diag(mission.consider_sigmas**2)
     for node in range(n):
-        before[node] = covariance
+        before[node] = covariance[:6, :6]
         plan = nominal.plan_at(node)
         if plan is not None:
             maneuver = plan.maneuver
             nominal_dv = maneuver.dv_vector
             if maneuver.closed_loop:
-                gain = plan.gain
-                knowledge = np.zeros((6, 6)) if maneuver.navigation is None else maneuver.navigation.covariance
+                gain = np.zeros((3, size))
+                gain[:, :6] = plan.gain  # the parameters are not estimated, so the gain ignores them
+                knowledge = np.zeros((size, size))
+                if maneuver.navigation is not None:
+                    knowledge[:6, :6] = maneuver.navigation.covariance
                 correction = symmetrize(gain @ (covariance + knowledge) @ gain.T)
                 closed = identity - input_matrix @ gain
                 covariance = closed @ covariance @ closed.T + input_matrix @ gain @ knowledge @ gain.T @ input_matrix.T
@@ -199,12 +216,13 @@ def run_lincov(
             maneuvers.append(
                 ManeuverCovariance(maneuver.name, maneuver.time, node, maneuver.closed_loop, nominal_dv, correction, execution)
             )
-        after[node] = covariance
+        after[node] = covariance[:6, :6]
+        augmented[node] = covariance
         if node < n - 1:
-            stm = nominal.stms[node]
-            covariance = stm @ covariance @ stm.T
+            transition = nominal.augmented_transition(node)
+            covariance = transition @ covariance @ transition.T
             if nominal.process_noise:
-                covariance = covariance + nominal.process_noise[node]
+                covariance[:6, :6] = covariance[:6, :6] + nominal.process_noise[node]
             covariance = symmetrize(covariance)
 
     samples = None
@@ -212,7 +230,7 @@ def run_lincov(
         # The per-node history of every sample is kept only while it stays small (about 100 MB).
         keep_history = dv_samples * n <= _HISTORY_LIMIT
         samples = sample_linear(mission, nominal, np.arange(dv_samples), seed, keep_history)
-    return LinCovResult(mission, nominal, before, after, tuple(maneuvers), samples, seed)
+    return LinCovResult(mission, nominal, before, after, tuple(maneuvers), samples, seed, augmented)
 
 
 def sample_linear(mission: Mission, nominal: Nominal, indices, seed: int = 0, keep_history: bool = True) -> LinearSamples:
@@ -228,11 +246,12 @@ def sample_linear(mission: Mission, nominal: Nominal, indices, seed: int = 0, ke
     n = nominal.n_nodes
     plans = nominal.plans
     intervals = n - 1 if nominal.process_noise else 0
-    normals = draw_normals_batch(seed, indices, len(plans), intervals)
+    normals = draw_normals_batch(seed, indices, len(plans), intervals, nominal.n_consider)
 
     deviation = np.zeros((count, 6))
     if mission.initial_dispersion is not None:
         deviation = mission.initial_dispersion.apply(normals.initial)
+    parameter_error = normals.consider * mission.consider_sigmas if nominal.n_consider else None
     noise_factors = [covariance_factor(q) for q in nominal.process_noise]
 
     deviations_before = np.empty((count, n, 6)) if keep_history else None
@@ -258,7 +277,10 @@ def sample_linear(mission: Mission, nominal: Nominal, indices, seed: int = 0, ke
             deviation = deviation.copy()
             deviation[:, 3:] += command - maneuver.dv_vector + execution[:, index]
         if node < n - 1:
-            deviation = deviation @ nominal.stms[node].T
+            propagated = deviation @ nominal.stms[node].T
+            if parameter_error is not None:
+                propagated = propagated + parameter_error @ nominal.consider_sensitivities[node].T
+            deviation = propagated
             if noise_factors:
                 deviation = deviation + normals.process[:, node] @ noise_factors[node].T
     return LinearSamples(indices, deviations_before, deviation, commanded, execution)

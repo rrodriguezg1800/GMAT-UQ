@@ -81,6 +81,7 @@ def _mission_section(mission: Mission) -> dict:
         if mission.process_noise is None
         else {"accel_sigma": list(mission.process_noise.accel_sigma), "max_step": mission.process_noise.max_step},
         "final_target": None if mission.final_target is None else mission.final_target.describe(),
+        "consider": [{"name": item.name, "sigma": item.sigma} for item in mission.consider],
         "maneuvers": maneuvers,
     }
 
@@ -141,6 +142,7 @@ def build_report(
                 }
             )
         section = {
+            "consider_nominal": dict(zip(nominal.consider_names, nominal.consider_nominal)),
             "nodes": nodes,
             "final_covariance": lincov.final_covariance,
             "final_sigmas": lincov.sigmas(),

@@ -15,7 +15,7 @@ import numpy as np
 
 from .dynamics.base import Dynamics
 from .linalg import velocity_input_matrix
-from .models import ManeuverErrorModel, NavigationErrorModel, ProcessNoise, StateDispersion
+from .models import ConsiderParameter, ManeuverErrorModel, NavigationErrorModel, ProcessNoise, StateDispersion
 from .targets import Target
 
 __all__ = ["Maneuver", "Mission", "Nominal", "ManeuverPlan", "compute_nominal"]
@@ -107,6 +107,9 @@ class Mission:
         example the B-plane).
     initial_time:
         Start of the analysis, seconds from the mission epoch.
+    consider:
+        Uncertain model parameters (for example ``Cd`` or ``Cr``) that are
+        neither estimated nor corrected.
     """
 
     initial_state: tuple[float, ...]
@@ -117,6 +120,7 @@ class Mission:
     report_times: tuple[float, ...] = ()
     final_target: Target | None = None
     initial_time: float = 0.0
+    consider: tuple[ConsiderParameter, ...] = ()
 
     def __post_init__(self) -> None:
         state = np.asarray(self.initial_state, dtype=float).reshape(-1)
@@ -145,10 +149,21 @@ class Mission:
             if not self.initial_time <= time <= self.final_time:
                 raise ValueError("report_times must lie inside the mission time span")
         object.__setattr__(self, "report_times", reports)
+        consider = tuple(self.consider)
+        if any(not isinstance(item, ConsiderParameter) for item in consider):
+            raise ValueError("consider must hold ConsiderParameter objects")
+        consider_names = [item.name for item in consider]
+        if len(set(consider_names)) != len(consider_names):
+            raise ValueError("consider parameter names must be unique")
+        object.__setattr__(self, "consider", consider)
 
     @property
     def state_vector(self) -> np.ndarray:
         return np.array(self.initial_state)
+
+    @property
+    def consider_sigmas(self) -> np.ndarray:
+        return np.array([item.sigma for item in self.consider])
 
     def node_times(self) -> np.ndarray:
         """Sorted, de-duplicated times at which the engines stop.
@@ -204,10 +219,35 @@ class Nominal:
     final_target_value: np.ndarray | None = None
     final_target_jacobian: np.ndarray | None = None
     process_noise: tuple[np.ndarray, ...] = field(default=())  # per-interval Q, empty when inactive
+    consider_names: tuple[str, ...] = ()
+    consider_nominal: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    # (n - 1, 6, m): change of the state arriving at node i + 1 per unit change of each
+    # consider parameter over interval i, with the state leaving node i held fixed.
+    consider_sensitivities: np.ndarray = field(default_factory=lambda: np.zeros((0, 6, 0)))
 
     @property
     def n_nodes(self) -> int:
         return len(self.times)
+
+    @property
+    def n_consider(self) -> int:
+        return len(self.consider_names)
+
+    def augmented_transition(self, index: int) -> np.ndarray:
+        """Transition matrix of interval ``index`` for the state augmented with the consider parameters."""
+        m = self.n_consider
+        matrix = np.eye(6 + m)
+        matrix[:6, :6] = self.stms[index]
+        if m:
+            matrix[:6, 6:] = self.consider_sensitivities[index]
+        return matrix
+
+    def parameters_for(self, deviations) -> dict[str, float] | None:
+        """Parameter values to propagate with, given deviations from the nominal (``None`` if no parameters)."""
+        if not self.consider_names:
+            return None
+        values = self.consider_nominal + np.asarray(deviations, dtype=float).reshape(self.n_consider)
+        return {name: float(value) for name, value in zip(self.consider_names, values)}
 
     def plan_at(self, node: int) -> ManeuverPlan | None:
         for plan in self.plans:
@@ -279,4 +319,20 @@ def compute_nominal(mission: Mission, dynamics: Dynamics) -> Nominal:
     if mission.process_noise is not None:
         noise = tuple(mission.process_noise.covariance(times[i + 1] - times[i]) for i in range(n - 1))
 
-    return Nominal(times, before, after, stms, tuple(plans), final_value, final_jacobian, noise)
+    names = tuple(item.name for item in mission.consider)
+    nominal_values = np.array([dynamics.parameter_value(name) for name in names], dtype=float)
+    sensitivities = np.zeros((n - 1, 6, len(names)))
+    for column, item in enumerate(mission.consider):
+        # Central difference over +/- one sigma: the secant slope over the range the
+        # parameter actually spans, and well clear of integration noise.
+        step = item.sigma
+        plus = {item.name: nominal_values[column] + step}
+        minus = {item.name: nominal_values[column] - step}
+        for node in range(n - 1):
+            high = dynamics.propagate(after[node], times[node], times[node + 1], parameters=plus)
+            low = dynamics.propagate(after[node], times[node], times[node + 1], parameters=minus)
+            sensitivities[node, :, column] = (np.asarray(high) - np.asarray(low)) / (2.0 * step)
+
+    return Nominal(
+        times, before, after, stms, tuple(plans), final_value, final_jacobian, noise, names, nominal_values, sensitivities
+    )

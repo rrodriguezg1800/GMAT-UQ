@@ -29,7 +29,7 @@ from .dynamics import (
 from .guidance import design_maneuver, solve_correction
 from .lincov import LinCovResult, run_lincov, sample_linear
 from .mission import Maneuver, Mission, Nominal, compute_nominal
-from .models import ManeuverErrorModel, NavigationErrorModel, ProcessNoise, StateDispersion
+from .models import ConsiderParameter, ManeuverErrorModel, NavigationErrorModel, ProcessNoise, StateDispersion
 from .montecarlo import MonteCarloResult, run_monte_carlo
 from .sigma import SigmaPointResult, run_sigma_point_check
 from .stats import (
@@ -62,6 +62,7 @@ __all__ = [
     "Mission",
     "Nominal",
     "compute_nominal",
+    "ConsiderParameter",
     "ManeuverErrorModel",
     "NavigationErrorModel",
     "ProcessNoise",

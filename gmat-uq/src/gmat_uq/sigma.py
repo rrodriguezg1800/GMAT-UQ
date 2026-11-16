@@ -6,8 +6,9 @@ For every coast arc the dispersion covariance at the start of the arc is
 represented by twelve sigma points (plus the nominal, which is already known:
 thirteen trajectories in total).  The points are propagated through the full
 nonlinear dynamics and their mean and covariance are compared with the linear
-prediction.  The check costs twelve propagations per arc and answers one
-question: can the linear covariance be trusted on this arc?
+prediction.  The check costs twelve propagations per arc (two more per
+consider parameter, which joins the sigma points) and answers one question:
+can the linear covariance be trusted on this arc?
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ import numpy as np
 
 from .dynamics.base import Dynamics
 from .lincov import LinCovResult
-from .linalg import covariance_factor, symmetrize, whitening_matrix
+from .linalg import symmetrize, whitening_matrix
 
 __all__ = ["SegmentCheck", "SigmaPointResult", "run_sigma_point_check"]
 
@@ -82,6 +83,34 @@ class SigmaPointResult:
         }
 
 
+def _sigma_directions(covariance: np.ndarray, rtol: float = 1e-12) -> np.ndarray:
+    """Columns ``L`` with ``L L^T`` equal to ``covariance``, one per direction that carries variance.
+
+    The decomposition is done on the correlation matrix, so the threshold that
+    drops numerically empty directions does not depend on units (km, km/s or
+    the units of a consider parameter).  A rank-deficient covariance therefore
+    costs two propagations per real direction instead of two per dimension.
+    """
+    covariance = symmetrize(covariance)
+    variances = np.clip(np.diag(covariance), 0.0, None)
+    active = variances > 0.0
+    columns = np.zeros((covariance.shape[0], 0))
+    if not active.any():
+        return columns
+    scale = np.sqrt(variances[active])
+    correlation = covariance[np.ix_(active, active)] / np.outer(scale, scale)
+    eigenvalues, eigenvectors = np.linalg.eigh(symmetrize(correlation))
+    keep = eigenvalues > rtol * max(float(eigenvalues.max()), np.finfo(float).tiny)
+    # Deterministic signs, so that repeated runs propagate the same points.
+    pivot = np.abs(eigenvectors).argmax(axis=0)
+    signs = np.sign(eigenvectors[pivot, np.arange(eigenvectors.shape[1])])
+    signs[signs == 0.0] = 1.0
+    reduced = (eigenvectors * signs)[:, keep] * np.sqrt(eigenvalues[keep])
+    columns = np.zeros((covariance.shape[0], reduced.shape[1]))
+    columns[active] = reduced * scale[:, None]
+    return columns
+
+
 def run_sigma_point_check(lincov: LinCovResult, dynamics: Dynamics, threshold: float = 0.1) -> SigmaPointResult:
     """Check every coast arc of a linear covariance result against sigma points.
 
@@ -97,31 +126,36 @@ def run_sigma_point_check(lincov: LinCovResult, dynamics: Dynamics, threshold: f
     if threshold <= 0.0:
         raise ValueError("threshold must be positive")
     nominal = lincov.nominal
-    dimension = 6
+    m = nominal.n_consider
+    dimension = 6 + m
     spread = np.sqrt(dimension)  # symmetric cubature set: +/- sqrt(n) columns of the factor
     segments = []
     propagations = 0
     for node in range(nominal.n_nodes - 1):
         t0, t1 = nominal.times[node], nominal.times[node + 1]
-        covariance = lincov.covariance_after[node]
-        linear = symmetrize(nominal.stms[node] @ covariance @ nominal.stms[node].T)
+        if lincov.augmented_after is not None:
+            covariance = lincov.augmented_after[node]
+        else:
+            covariance = lincov.covariance_after[node]
+        transition = nominal.augmented_transition(node)
+        linear = symmetrize(transition @ covariance @ transition.T)[:6, :6]
         whitener = whitening_matrix(linear)
         if whitener.shape[0] == 0:
             segments.append(SegmentCheck(node, node + 1, float(t0), float(t1), 0.0, 0.0, False))
             continue
-        factor = covariance_factor(covariance)
+        directions = _sigma_directions(covariance)
         start = nominal.states_after[node]
         end_nominal = nominal.states_before[node + 1]
         ends = []
-        for column in range(dimension):
-            offset = spread * factor[:, column]
-            if not offset.any():
-                # A zero column contributes two copies of the nominal end state.
-                ends.extend([end_nominal, end_nominal])
-                continue
-            ends.append(np.asarray(dynamics.propagate(start + offset, t0, t1), dtype=float))
-            ends.append(np.asarray(dynamics.propagate(start - offset, t0, t1), dtype=float))
-            propagations += 2
+        # Directions without variance contribute copies of the nominal end state; they are kept
+        # so that the sample weights stay those of the full symmetric set.
+        ends.extend([end_nominal] * (2 * (dimension - directions.shape[1])))
+        for column in range(directions.shape[1]):
+            offset = spread * directions[:, column]
+            for sign in (1.0, -1.0):
+                extra = {"parameters": nominal.parameters_for(sign * offset[6:])} if m else {}
+                ends.append(np.asarray(dynamics.propagate(start + sign * offset[:6], t0, t1, **extra), dtype=float))
+                propagations += 1
         ends = np.array(ends)
         mean = ends.mean(axis=0)
         centered = ends - mean

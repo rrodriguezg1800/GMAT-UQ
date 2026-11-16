@@ -113,3 +113,40 @@ def run_gmat_console(gmat_root: str, script: Path) -> None:
     )
     if completed.returncode != 0:
         raise RuntimeError(f"GmatConsole failed:\n{completed.stdout[-3000:]}\n{completed.stderr[-2000:]}")
+
+# Low Earth orbit with drag (exponential atmosphere, no space-weather files needed) and SRP,
+# used for consider parameters such as Cd and Cr.
+DRAG = """\
+Create Spacecraft Sat;
+Sat.DateFormat = UTCGregorian;
+Sat.Epoch = '01 Jan 2026 12:00:00.000';
+Sat.CoordinateSystem = EarthMJ2000Eq;
+Sat.DisplayStateType = Cartesian;
+Sat.X = 6678.1363;
+Sat.Y = 0;
+Sat.Z = 0;
+Sat.VX = 0;
+Sat.VY = 6.785;
+Sat.VZ = 3.9;
+Sat.DryMass = 500;
+Sat.Cd = 2.2;
+Sat.DragArea = 4;
+Sat.Cr = 1.8;
+Sat.SRPArea = 4;
+Create ForceModel FM;
+FM.CentralBody = Earth;
+FM.PrimaryBodies = {Earth};
+FM.GravityField.Earth.Degree = 2;
+FM.GravityField.Earth.Order = 0;
+FM.Drag.AtmosphereModel = Exponential;
+FM.SRP = On;
+FM.ErrorControl = RSSStep;
+Create Propagator Prop;
+Prop.FM = FM;
+Prop.Type = PrinceDormand78;
+Prop.InitialStepSize = 60;
+Prop.Accuracy = 1e-12;
+Prop.MinStep = 0;
+Prop.MaxStep = 600;
+BeginMissionSequence;
+"""

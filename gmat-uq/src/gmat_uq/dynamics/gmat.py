@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import itertools
 import os
+from contextlib import contextmanager
 import re
 import sys
 import tempfile
@@ -60,6 +61,12 @@ _OUTPUT_RESOURCES = frozenset(
         "Enhanced3DView",
     )
 )
+# Resources of the GMAT-UQ plugin describe the analysis itself; GMAT-UQ reads them from its
+# configuration, so they are left out too (the plugin may not be loaded by the API).
+_PLUGIN_RESOURCES = frozenset(
+    name.lower()
+    for name in ("ManeuverErrorModel", "StateDispersion", "NavigationErrorModel", "UncertainManeuver", "UncertaintyAnalysis")
+)
 _CREATE = re.compile(r"^Create\s+(\w+)\s+(.*)$", re.IGNORECASE)
 _ASSIGNMENT = re.compile(r"^(?:GMAT\s+)?(\w+)\s*[.=]", re.IGNORECASE)
 _BEGIN_SEQUENCE = re.compile(r"^BeginMissionSequence\b", re.IGNORECASE)
@@ -102,7 +109,7 @@ def resources_only_script(text: str) -> str:
             break
         drop = False
         create = _CREATE.match(code)
-        if create and create.group(1).lower() in _OUTPUT_RESOURCES:
+        if create and create.group(1).lower() in _OUTPUT_RESOURCES | _PLUGIN_RESOURCES:
             names = create.group(2).replace("...", " ").rstrip("; ").replace(",", " ").split()
             removed.update(name.lower() for name in names)
             drop = True
@@ -371,6 +378,7 @@ class GmatDynamics(Dynamics):
             "stm_prop": stm_prop,
             "variational": use_variational,
             "fixed_step": fixed_step,
+            "parameters": {},  # nominal values of Spacecraft fields, read on first use
             "epoch": epoch,
             "initial_state": display,
             "central_body": central,
@@ -476,34 +484,70 @@ class GmatDynamics(Dynamics):
         except Exception as error:  # gmatpy raises its own exception type for force-model errors
             raise PropagationError(f"GMAT failed while propagating over {dt} s: {error}") from error
 
-    def propagate(self, state, t0: float, t1: float) -> np.ndarray:
+    def parameter_value(self, name: str) -> float:
+        """Nominal value, from the script, of a numeric Spacecraft field such as ``Cd`` or ``Cr``."""
+        engine = self._handles()
+        nominal = engine["parameters"]
+        if name not in nominal:
+            sat = engine["sat"]
+            try:
+                value = float(sat.GetField(name))
+            except Exception as error:
+                raise ValueError(f"Spacecraft '{self.spacecraft}' has no numeric field '{name}'") from error
+            if name in _STATE_FIELDS or name in ("Epoch", "A1Epoch"):
+                raise ValueError(f"'{name}' is part of the orbit state, not a model parameter")
+            nominal[name] = value
+        return nominal[name]
+
+    @contextmanager
+    def _parameters_set(self, parameters, *spacecraft):
+        """Set Spacecraft fields for one propagation and restore the nominal values afterwards."""
+        if not parameters:
+            yield
+            return
+        names = list(parameters)
+        nominal = {name: self.parameter_value(name) for name in names}
+        try:
+            for sat in spacecraft:
+                for name in names:
+                    sat.SetField(name, float(parameters[name]))
+            yield
+        finally:
+            for sat in spacecraft:
+                for name in names:
+                    sat.SetField(name, nominal[name])
+
+    def propagate(self, state, t0: float, t1: float, parameters=None) -> np.ndarray:
         state = np.asarray(state, dtype=float).reshape(6)
         dt = float(t1) - float(t0)
         if dt == 0.0:
             return state.copy()
         engine = self._handles()
-        self._load_state(engine["sat"], engine["epoch"] + float(t0) / 86400.0, state)
-        integrator = self._step(engine["prop"], dt, engine["fixed_step"])
-        return np.array(integrator.GetState()[:6])
+        with self._parameters_set(parameters, engine["sat"]):
+            self._load_state(engine["sat"], engine["epoch"] + float(t0) / 86400.0, state)
+            integrator = self._step(engine["prop"], dt, engine["fixed_step"])
+            return np.array(integrator.GetState()[:6])
 
-    def propagate_stm(self, state, t0: float, t1: float):
+    def propagate_stm(self, state, t0: float, t1: float, parameters=None):
         state = np.asarray(state, dtype=float).reshape(6)
         dt = float(t1) - float(t0)
         if dt == 0.0:
             return state.copy(), np.eye(6)
         engine = self._handles()
         if not engine["variational"]:
-            return self.propagate(state, t0, t1), finite_difference_stm(self.propagate, state, t0, t1)
+            final = self.propagate(state, t0, t1, parameters=parameters)
+            return final, finite_difference_stm(self.propagate, state, t0, t1, parameters=parameters)
         sat = engine["stm_sat"]
-        self._load_state(sat, engine["epoch"] + float(t0) / 86400.0, state)
-        for row in range(6):
-            for column in range(6):
-                sat.SetRealParameter("STM", 1.0 if row == column else 0.0, row, column)
-        integrator = self._step(engine["stm_prop"], dt, engine["fixed_step"])
-        integrator.UpdateSpaceObject()
-        matrix = sat.GetRmatrixParameter("STM")
-        stm = np.array([[matrix.GetElement(row, column) for column in range(6)] for row in range(6)])
-        return np.array(integrator.GetState()[:6]), stm
+        with self._parameters_set(parameters, sat):
+            self._load_state(sat, engine["epoch"] + float(t0) / 86400.0, state)
+            for row in range(6):
+                for column in range(6):
+                    sat.SetRealParameter("STM", 1.0 if row == column else 0.0, row, column)
+            integrator = self._step(engine["stm_prop"], dt, engine["fixed_step"])
+            integrator.UpdateSpaceObject()
+            matrix = sat.GetRmatrixParameter("STM")
+            stm = np.array([[matrix.GetElement(row, column) for column in range(6)] for row in range(6)])
+            return np.array(integrator.GetState()[:6]), stm
 
     def describe(self) -> dict:
         engine = self._handles()

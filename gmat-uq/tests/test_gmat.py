@@ -425,3 +425,117 @@ def test_lunar_flyby_example(gmat_root, monkeypatch):
     assert np.allclose(b_plane_sigma, [0.6326, 0.6051], rtol=5e-3)  # km, as in docs/validation.md
     assert run_sigma_point_check(lincov, config.dynamics).linear_ok
     assert 3155.0 < 1e3 * lincov.dv_statistics()["total"]["quantile"]["value"] < 3170.0
+
+
+@needs_gmat
+def test_drag_coefficient_as_a_consider_parameter(gmat_root, tmp_path):
+    """An uncertain Cd, with GMAT's drag model, gives the same dispersion in both engines."""
+    from gmat_uq import ConsiderParameter
+
+    script = scripts.write_script(tmp_path, "drag.script", scripts.DRAG)
+    dynamics = GmatDynamics(str(script), gmat_root=gmat_root)
+    assert dynamics.parameter_value("Cd") == 2.2 and dynamics.parameter_value("Cr") == 1.8
+    with pytest.raises(ValueError, match="no numeric field"):
+        dynamics.parameter_value("NoSuchField")
+    with pytest.raises(ValueError, match="orbit state"):
+        dynamics.parameter_value("X")
+    state = dynamics.initial_state()
+    # Setting a parameter for one propagation leaves the nominal untouched.
+    reference = dynamics.propagate(state, 0.0, 10800.0)
+    changed = dynamics.propagate(state, 0.0, 10800.0, parameters={"Cd": 2.42})
+    assert np.linalg.norm(changed[:3] - reference[:3]) > 0.01
+    assert np.array_equal(dynamics.propagate(state, 0.0, 10800.0), reference)
+    _, stm_with = dynamics.propagate_stm(state, 0.0, 10800.0, parameters={"Cd": 2.42})
+    final, _ = dynamics.propagate_stm(state, 0.0, 10800.0)
+    assert np.array_equal(final, reference)
+
+    mission = Mission(
+        tuple(state),
+        final_time=21600.0,
+        initial_dispersion=StateDispersion.from_sigmas([1e-3] * 3 + [1e-6] * 3),  # 1 m, 1 mm/s
+        consider=(ConsiderParameter("Cd", 0.22),),  # 10%
+        report_times=(10800.0,),
+    )
+    lincov = run_lincov(mission, dynamics, dv_samples=0)
+    quiet = run_lincov(Mission(mission.initial_state, mission.final_time, initial_dispersion=mission.initial_dispersion), dynamics, dv_samples=0)
+    # The parameter adds, in quadrature, exactly the position change that +/- one sigma of Cd causes.
+    high = dynamics.propagate(state, 0.0, 21600.0, parameters={"Cd": 2.42})
+    low = dynamics.propagate(state, 0.0, 21600.0, parameters={"Cd": 1.98})
+    effect = 0.5 * np.linalg.norm(high[:3] - low[:3])
+    assert effect > quiet.position_sigma_rss()  # drag dominates
+    assert np.isclose(lincov.position_sigma_rss() ** 2 - quiet.position_sigma_rss() ** 2, effect**2, rtol=1e-3)  # chained over two arcs vs one
+    monte_carlo = run_monte_carlo(mission, dynamics, 200, seed=5, nominal=lincov.nominal, workers=2)
+    assert monte_carlo.n_failed == 0
+    ratio = np.sqrt(np.diag(monte_carlo.final_covariance))[:3] / lincov.sigmas()[:3]
+    assert np.all(np.abs(ratio - 1.0) < 0.2)  # 200 samples: about +/- 10% of sampling noise per sigma
+    assert run_sigma_point_check(lincov, dynamics).linear_ok
+
+
+@needs_gmat
+def test_navigation_covariance_from_a_gmat_estimator_run(gmat_root, tmp_path):
+    """Run GMAT's own batch-estimation sample, report the covariance, and use it as navigation knowledge."""
+    from pathlib import Path
+
+    from gmat_uq import NavigationErrorModel
+
+    sample = Path(gmat_root) / "samples" / "Navigation" / "Ex_Simulate_and_Process_GpsPosVec_data.script"
+    if not sample.exists():
+        pytest.skip("this GMAT installation has no GpsPosVec navigation sample")
+    knowledge_file = tmp_path / "knowledge.txt"
+    report = (
+        "Create ReportFile UQCovReport;\n"
+        f"UQCovReport.Filename = '{knowledge_file.as_posix()}';\n"
+        "UQCovReport.WriteHeaders = False;\nUQCovReport.Precision = 16;\nUQCovReport.WriteReport = False;\n\n"
+    )
+    text = sample.read_text(encoding="utf-8", errors="replace").replace("BeginMissionSequence", report + "BeginMissionSequence", 1)
+    text = text.rstrip() + "\nReport UQCovReport EstSat.EarthMJ2000Eq.OrbitErrorCovariance;\n"
+    script = scripts.write_script(tmp_path, "estimate.script", text)
+    scripts.run_gmat_console(gmat_root, script)
+
+    knowledge = NavigationErrorModel.from_file(knowledge_file)
+    sigmas = np.sqrt(np.diag(knowledge.covariance))
+    assert np.all(sigmas[:3] < 1e-2) and np.all(sigmas[:3] > 1e-6)  # metre-level GPS solution, in km
+
+    dynamics = GmatDynamics(str(scripts.write_script(tmp_path, "pm.script", scripts.POINT_MASS.format(**scripts.LEO_STATE))), gmat_root=gmat_root)
+    mission = Mission(
+        tuple(dynamics.initial_state()),
+        final_time=5400.0,
+        maneuvers=(Maneuver("TCM", 1800.0, target=ParameterTarget.position(), target_time=5400.0, navigation=knowledge),),
+        initial_dispersion=StateDispersion.from_sigmas([1.0] * 3 + [1e-3] * 3),
+    )
+    result = run_lincov(mission, dynamics, dv_samples=0)
+    # With perfect execution, the delivery error at the target comes from the knowledge error only.
+    assert 0.0 < result.position_sigma_rss() < 1.0
+
+
+def test_resources_only_script_drops_the_plugin_resources():
+    text = (
+        "Create Spacecraft Sat;\nCreate ManeuverErrorModel Engine;\nEngine.FixedMagnitudeSigma = 1e-5;\n"
+        "Create StateDispersion Injection, Spare;\nInjection.Sigmas = [1 1 1 1e-3 1e-3 1e-3];\n"
+        "Create NavigationErrorModel Nav;\nCreate UncertainManeuver TCM1;\nTCM1.Target = {X, Y, Z};\n"
+        "Create UncertaintyAnalysis UQ;\nUQ.Spacecraft = Sat;\nBeginMissionSequence;\nRunUncertaintyAnalysis UQ;\n"
+    )
+    cleaned = resources_only_script(text)
+    assert "Create Spacecraft Sat;" in cleaned
+    for gone in ("Engine", "Injection", "Spare", "Nav", "TCM1", "UQ", "RunUncertaintyAnalysis"):
+        assert gone not in cleaned, gone
+
+
+@needs_gmat
+def test_times_from_another_epoch_are_shifted_to_the_script_epoch(gmat_root, tmp_path):
+    from gmat_uq.config import build_from_dict
+
+    script = scripts.write_script(tmp_path, "pm.script", scripts.POINT_MASS.format(**scripts.LEO_STATE))
+    dynamics = GmatDynamics(str(script), gmat_root=gmat_root)
+    later = dynamics.epoch_a1mjd + 0.5  # twelve hours after the script epoch
+    data = {
+        "dynamics": {"type": "gmat", "script": str(script), "gmat_root": gmat_root},
+        "mission": {"epoch_a1mjd": later, "initial_state": [7000.0, 0, 0, 0, 7.5, 0.5], "final_time": 3000.0, "report_times": [1000.0]},
+        "maneuver": [{"name": "TCM", "time": 600.0, "target": ["X", "Y", "Z"], "target_time": 3000.0}],
+    }
+    config = build_from_dict(data, tmp_path)
+    mission = config.mission
+    assert np.isclose(mission.initial_time, 43200.0) and np.isclose(mission.final_time, 46200.0)
+    assert np.isclose(mission.maneuvers[0].time, 43800.0) and np.isclose(mission.maneuvers[0].target_time, 46200.0)
+    assert np.allclose(mission.report_times, [44200.0])
+    assert run_lincov(mission, config.dynamics, dv_samples=0).nominal.times[0] == mission.initial_time

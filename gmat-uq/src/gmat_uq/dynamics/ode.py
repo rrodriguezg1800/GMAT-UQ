@@ -9,7 +9,7 @@ problems with known properties (conserved energy, an analytic Jacobi constant).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, replace
 
 import numpy as np
 from scipy.integrate import solve_ivp
@@ -58,11 +58,32 @@ class OdeDynamics(Dynamics):
     def _state_atol(self) -> np.ndarray:
         return np.array([self.atol_position] * 3 + [self.atol_velocity] * 3)
 
-    def propagate(self, state, t0: float, t1: float) -> np.ndarray:
+    _TOLERANCES = ("rtol", "atol_position", "atol_velocity")
+
+    def parameter_value(self, name: str) -> float:
+        """Nominal value of a physical parameter of the model (``mu``, ``j2``, ...)."""
+        names = {f.name for f in fields(self)} - set(self._TOLERANCES)
+        if name not in names:
+            raise ValueError(f"{type(self).__name__} has no parameter '{name}'; available: {', '.join(sorted(names))}")
+        return float(getattr(self, name))
+
+    def _with(self, parameters) -> "OdeDynamics":
+        """The same model with some physical parameters replaced."""
+        if not parameters:
+            return self
+        for name in parameters:
+            self.parameter_value(name)
+        return replace(self, **{name: float(value) for name, value in parameters.items()})
+
+    def propagate(self, state, t0: float, t1: float, parameters=None) -> np.ndarray:
+        if parameters:
+            return self._with(parameters).propagate(state, t0, t1)
         state = np.asarray(state, dtype=float).reshape(6)
         return self._integrate(self.rhs, state, float(t0), float(t1), self._state_atol())
 
-    def propagate_stm(self, state, t0: float, t1: float):
+    def propagate_stm(self, state, t0: float, t1: float, parameters=None):
+        if parameters:
+            return self._with(parameters).propagate_stm(state, t0, t1)
         state = np.asarray(state, dtype=float).reshape(6)
 
         def augmented(t, y):
